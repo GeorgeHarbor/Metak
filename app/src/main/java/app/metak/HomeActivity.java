@@ -265,6 +265,7 @@ public class HomeActivity extends Activity {
             card.setOnFocusChangeListener((v, focused) -> {
                 zoom(v, focused);
                 if (focused) showHero(item);
+                showHeroText(focused);
                 // Only a focused card owns the background; otherwise it is the wallpaper.
                 showBackdrop(focused ? item.image : null);
                 // The ends snap fully into view instead of stopping just past the card edge.
@@ -275,6 +276,8 @@ public class HomeActivity extends Activity {
             shelf.addView(card);
         }
         showHero(items.isEmpty() ? null : items.get(0));
+        // With no cards there is nothing to focus, so the empty-state hint stays readable.
+        showHeroText(items.isEmpty() || shelf.hasFocus());
         if (inApps) return;
         View first = items.isEmpty() ? apps.getChildAt(0) : shelf.getChildAt(0);
         if (first != null) first.requestFocus();
@@ -291,6 +294,12 @@ public class HomeActivity extends Activity {
         long left = (item.duration - item.position) / 60000;
         String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
         heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + " · " + meta);
+    }
+
+    private void showHeroText(boolean visible) {
+        int visibility = visible ? View.VISIBLE : View.INVISIBLE; // invisible keeps the cards from jumping
+        heroTitle.setVisibility(visibility);
+        heroSubtitle.setVisibility(visibility);
     }
 
     private void showBackdrop(String uri) {
