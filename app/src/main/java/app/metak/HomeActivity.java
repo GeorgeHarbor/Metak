@@ -287,7 +287,6 @@ public class HomeActivity extends Activity {
     }
 
     private void showShelf(List<WatchNext.Item> items) {
-        boolean inApps = apps.hasFocus();
         shelf.removeAllViews();
         for (WatchNext.Item item : items) {
             View card = getLayoutInflater().inflate(R.layout.card, shelf, false);
@@ -314,9 +313,7 @@ public class HomeActivity extends Activity {
         showHero(items.isEmpty() ? null : items.get(0));
         // With no cards there is nothing to focus, so the empty-state hint stays readable.
         showHeroText(items.isEmpty() || shelf.hasFocus());
-        if (inApps) return;
-        View first = items.isEmpty() ? apps.getChildAt(0) : shelf.getChildAt(0);
-        if (first != null) first.requestFocus();
+        focusDefault(); // runs on every return home, since the shelf reloads in onResume
     }
 
     private void showHero(WatchNext.Item item) {
@@ -330,6 +327,12 @@ public class HomeActivity extends Activity {
         long left = (item.duration - item.position) / 60000;
         String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
         heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + " · " + meta);
+    }
+
+    private void focusDefault() {
+        View first = dock.getChildCount() > 0 ? dock.getChildAt(0) : apps.getChildAt(0);
+        if (first != null) first.requestFocus();
+        scroll.scrollTo(0, 0);
     }
 
     private void showHeroText(boolean visible) {
