@@ -27,4 +27,10 @@ Then press Home and choose **Metak**. On Google TV, which hides the home picker,
 adb shell cmd package set-home-activity app.metak/.HomeActivity
 ```
 
+**Switching launchers:** with Metak as the default, pressing Home while Metak is already on screen opens your other launcher. Press Home again to come back. To go back to the stock launcher for good:
+
+```sh
+adb shell cmd package set-home-activity <stock.launcher.package>
+```
+
 Requires Android 8.0 (API 26) or newer.
