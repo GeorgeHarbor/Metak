@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Metak</string>
+    <string name="continue_watching">Continue Watching</string>
+    <string name="nothing_to_continue">Start something in Nuvio or SmartTube and it shows up here.</string>
+    <string name="needs_permission">Allow TV listings access to see Continue Watching from Nuvio and SmartTube.</string>
+    <string name="time_left">%1$s · %2$d min left</string>
 </resources>

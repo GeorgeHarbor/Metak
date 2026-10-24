@@ -4,6 +4,18 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
+    <ImageView
+        android:id="@+id/backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/scrim" />
+
     <ScrollView
         android:id="@+id/scroll"
         android:layout_width="match_parent"
@@ -19,8 +31,55 @@
             android:clipChildren="false"
             android:orientation="vertical"
             android:paddingHorizontal="48dp"
-            android:paddingTop="96dp"
             android:paddingBottom="48dp">
+
+            <LinearLayout
+                android:id="@+id/hero"
+                android:layout_width="match_parent"
+                android:layout_height="380dp"
+                android:clipChildren="false"
+                android:gravity="bottom"
+                android:orientation="vertical"
+                android:paddingBottom="32dp">
+
+                <TextView
+                    android:id="@+id/hero_title"
+                    android:layout_width="560dp"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:textColor="#F5F5F7"
+                    android:textSize="34sp" />
+
+                <TextView
+                    android:id="@+id/hero_subtitle"
+                    android:layout_width="560dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="24dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="#B3F5F5F7"
+                    android:textSize="16sp" />
+
+                <HorizontalScrollView
+                    android:id="@+id/shelf_scroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:paddingVertical="12dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/shelf"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
 
             <GridLayout
                 android:id="@+id/apps"

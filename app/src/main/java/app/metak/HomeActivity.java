@@ -14,13 +14,20 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.net.URISyntaxException;
 import java.util.List;
 
 public class HomeActivity extends Activity {
     private ScrollView scroll;
     private GridLayout apps;
+    private View hero;
+    private ImageView backdrop;
+    private TextView heroTitle, heroSubtitle;
+    private LinearLayout shelf;
 
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
@@ -35,6 +42,14 @@ public class HomeActivity extends Activity {
         setContentView(R.layout.home);
         scroll = findViewById(R.id.scroll);
         apps = findViewById(R.id.apps);
+        hero = findViewById(R.id.hero);
+        backdrop = findViewById(R.id.backdrop);
+        heroTitle = findViewById(R.id.hero_title);
+        heroSubtitle = findViewById(R.id.hero_subtitle);
+        shelf = findViewById(R.id.shelf);
+        // The backdrop belongs to the hero, so fade it out as the app grid scrolls up.
+        scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) ->
+                backdrop.setAlpha(Math.max(0f, 1f - y / (float) hero.getHeight())));
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -43,6 +58,20 @@ public class HomeActivity extends Activity {
         filter.addDataScheme("package");
         registerReceiver(packagesChanged, filter);
         loadApps();
+        if (checkSelfPermission(WatchNext.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] {WatchNext.PERMISSION}, 0);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadShelf(); // progress changes while the user is away in Nuvio or SmartTube
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
+        loadShelf();
     }
 
     @Override
@@ -95,6 +124,65 @@ public class HomeActivity extends Activity {
             });
             apps.addView(tile);
         }
+    }
+
+    private void loadShelf() {
+        new Thread(() -> {
+            List<WatchNext.Item> items = WatchNext.load(getContentResolver());
+            runOnUiThread(() -> showShelf(items));
+        }).start();
+    }
+
+    private void showShelf(List<WatchNext.Item> items) {
+        boolean inApps = apps.hasFocus();
+        shelf.removeAllViews();
+        for (WatchNext.Item item : items) {
+            View card = getLayoutInflater().inflate(R.layout.card, shelf, false);
+            card.setClipToOutline(true);
+            card.setContentDescription(item.title);
+            Images.load(card.findViewById(R.id.art), item.image);
+            ProgressBar progress = card.findViewById(R.id.progress);
+            if (item.progress() < 0) progress.setVisibility(View.GONE);
+            else progress.setProgress(item.progress());
+            card.setOnFocusChangeListener((v, focused) -> {
+                zoom(v, focused);
+                if (focused) showHero(item);
+            });
+            card.setOnClickListener(v -> open(item));
+            shelf.addView(card);
+        }
+        showHero(items.isEmpty() ? null : items.get(0));
+        if (inApps) return;
+        View first = items.isEmpty() ? apps.getChildAt(0) : shelf.getChildAt(0);
+        if (first != null) first.requestFocus();
+    }
+
+    private void showHero(WatchNext.Item item) {
+        if (item == null) {
+            backdrop.setImageDrawable(null);
+            heroTitle.setText(R.string.continue_watching);
+            boolean allowed = checkSelfPermission(WatchNext.PERMISSION) == PackageManager.PERMISSION_GRANTED;
+            heroSubtitle.setText(allowed ? R.string.nothing_to_continue : R.string.needs_permission);
+            return;
+        }
+        Images.load(backdrop, item.image);
+        heroTitle.setText(item.title);
+        long left = (item.duration - item.position) / 60000;
+        String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
+        heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + "\n" + meta);
+    }
+
+    private void open(WatchNext.Item item) {
+        Intent intent = null;
+        if (item.intentUri != null) {
+            try {
+                intent = Intent.parseUri(item.intentUri, Intent.URI_INTENT_SCHEME);
+            } catch (URISyntaxException ignored) {
+                // Fall back to just opening the app.
+            }
+        }
+        if (intent == null) intent = getPackageManager().getLeanbackLaunchIntentForPackage(item.pkg);
+        if (intent != null) start(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
     void start(Intent intent) {
