@@ -33,11 +33,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 public class HomeActivity extends Activity {
     private static final String DOCK_KEY = "dock";
     private static final int DOCK_SIZE = 7;
     private static final float DOCK_GLASS_OPACITY = 0.7f;
+    private static final long WEATHER_TTL_MS = 30 * 60 * 1000;
+    private static final String CITY_KEY = "city";
     // Starts like the stock launcher's dock; missing apps are skipped.
     private static final String DEFAULT_DOCK = "com.nuvio.tv,com.georgeharbor.youtube,com.spotify.tv.android,"
             + "com.limelight,com.netflix.ninja,com.plexapp.android,org.jellyfin.androidtv";
@@ -50,6 +53,7 @@ public class HomeActivity extends Activity {
     private final Matrix blurMatrix = new Matrix();
     private AlertDialog picker;
     private Drawable wallpaper;
+    private long weatherAt;
     private View hero;
     private ImageView backdrop;
     private TextView heroTitle, heroSubtitle;
@@ -102,6 +106,7 @@ public class HomeActivity extends Activity {
         filter.addDataScheme("package");
         registerReceiver(packagesChanged, filter);
         loadApps();
+        setCity(getIntent());
         // Size the hero so the dock sits near the bottom and only a sliver of the app grid peeks out.
         scroll.post(() -> {
             hero.getLayoutParams().height = scroll.getHeight() - dockFrame.getHeight() - dp(24 + 26);
@@ -116,6 +121,7 @@ public class HomeActivity extends Activity {
     protected void onResume() {
         super.onResume();
         loadShelf(); // progress changes while the user is away in Nuvio or SmartTube
+        loadWeather();
     }
 
     @Override
@@ -132,6 +138,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setCity(intent);
         // This TV never shows the system launcher chooser, so Metak asks on every Home press.
         if (intent.hasCategory(Intent.CATEGORY_HOME)) pickLauncher();
     }
@@ -241,6 +248,35 @@ public class HomeActivity extends Activity {
         View moved = findViewById(R.id.content).findViewWithTag(pkg);
         if (moved != null) moved.requestFocus();
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    /** adb shell am start -n app.metak/.HomeActivity --es city "Novi Sad" */
+    private void setCity(Intent intent) {
+        String city = intent.getStringExtra(CITY_KEY);
+        if (city == null || city.trim().isEmpty()) return;
+        getPreferences(MODE_PRIVATE).edit().putString(CITY_KEY, city.trim()).apply();
+        weatherAt = 0;
+        loadWeather();
+    }
+
+    private void loadWeather() {
+        long now = System.currentTimeMillis();
+        if (now - weatherAt < WEATHER_TTL_MS) return;
+        weatherAt = now;
+        boolean fahrenheit = "US".equals(Locale.getDefault().getCountry());
+        String city = getPreferences(MODE_PRIVATE).getString(CITY_KEY, "Kraljevo");
+        new Thread(() -> {
+            Weather w = Weather.load(city, fahrenheit);
+            runOnUiThread(() -> {
+                if (w == null) {
+                    weatherAt = 0; // retry on the next resume
+                    return;
+                }
+                ((TextView) findViewById(R.id.weather_temp)).setText(w.icon + " " + w.temp + "°");
+                ((TextView) findViewById(R.id.weather_city)).setText(w.city);
+                findViewById(R.id.weather).setVisibility(View.VISIBLE);
+            });
+        }).start();
     }
 
     private void loadShelf() {
