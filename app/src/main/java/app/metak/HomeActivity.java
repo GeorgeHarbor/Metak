@@ -1,6 +1,7 @@
 package app.metak;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -22,6 +23,7 @@ import android.widget.Toast;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 public class HomeActivity extends Activity {
@@ -34,6 +36,7 @@ public class HomeActivity extends Activity {
     private ScrollView scroll;
     private GridLayout apps;
     private LinearLayout dock;
+    private AlertDialog picker;
     private View hero;
     private ImageView backdrop;
     private TextView heroTitle, heroSubtitle;
@@ -94,22 +97,31 @@ public class HomeActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // Home pressed while Metak is already showing: hand over to the other launcher, so Home toggles.
-        if (hasWindowFocus() && intent.hasCategory(Intent.CATEGORY_HOME)) {
-            Intent other = otherHome();
-            if (other != null) start(other);
-        }
+        // This TV never shows the system launcher chooser, so Metak asks on every Home press.
+        if (intent.hasCategory(Intent.CATEGORY_HOME)) pickLauncher();
     }
 
-    private Intent otherHome() {
+    private void pickLauncher() {
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        List<ResolveInfo> homes = new ArrayList<>();
         for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, 0)) {
-            ActivityInfo a = ri.activityInfo;
             // Negative priority marks the Settings fallback home, which is not a real launcher.
-            if (a.packageName.equals(getPackageName()) || ri.priority < 0) continue;
-            return home.setClassName(a.packageName, a.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (ri.priority >= 0) homes.add(ri);
         }
-        return null;
+        if (homes.size() < 2) return;
+        homes.sort(Comparator.comparing(ri -> !ri.activityInfo.packageName.equals(getPackageName())));
+
+        CharSequence[] names = new CharSequence[homes.size()];
+        for (int i = 0; i < names.length; i++) names[i] = homes.get(i).loadLabel(getPackageManager());
+        if (picker != null) picker.dismiss();
+        picker = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(R.string.pick_launcher)
+                .setItems(names, (dialog, which) -> {
+                    ActivityInfo a = homes.get(which).activityInfo;
+                    if (a.packageName.equals(getPackageName())) return;
+                    start(home.setClassName(a.packageName, a.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                })
+                .show();
     }
 
     @Override

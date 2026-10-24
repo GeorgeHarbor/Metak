@@ -7,4 +7,5 @@
     <string name="dock_added">Added to the dock</string>
     <string name="dock_removed">Removed from the dock</string>
     <string name="dock_full">The dock is full. Long-press an app in it to remove it first.</string>
+    <string name="pick_launcher">Choose a home screen</string>
 </resources>
