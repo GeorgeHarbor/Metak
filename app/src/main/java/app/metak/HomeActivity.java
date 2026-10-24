@@ -190,7 +190,7 @@ public class HomeActivity extends Activity {
         heroTitle.setText(item.title);
         long left = (item.duration - item.position) / 60000;
         String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
-        heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + "\n" + meta);
+        heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + " · " + meta);
     }
 
     private void open(WatchNext.Item item) {
