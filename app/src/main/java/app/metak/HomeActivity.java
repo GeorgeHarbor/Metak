@@ -220,6 +220,12 @@ public class HomeActivity extends Activity {
 
         List<String> docked = dockPackages();
         View[] dockTiles = new View[docked.size()];
+        // Removing the focused tile would hand focus to the first card (and swap the background),
+        // so block focus while rebuilding and put it back on the same app afterwards.
+        View current = getCurrentFocus();
+        Object focusedApp = (apps.hasFocus() || dock.hasFocus()) && current != null ? current.getTag() : null;
+        ViewGroup content = findViewById(R.id.content);
+        content.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         apps.removeAllViews();
         dock.removeAllViews();
         for (ResolveInfo ri : list) {
@@ -269,6 +275,8 @@ public class HomeActivity extends Activity {
             if (tile != null) dock.addView(tile);
         }
         dockFrame.setVisibility(dock.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+        content.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        if (focusedApp != null && focusTile((String) focusedApp) == null) focusDefault();
     }
 
     /** Docked packages that are still installed, in dock order. */
