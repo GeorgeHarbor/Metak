@@ -7,6 +7,14 @@ A lightweight Android TV launcher modeled on the Apple TV home screen.
 - **App grid:** every other TV app as a rounded banner that zooms on focus, tvOS style.
 - **Tiny:** plain Java on the framework only, no libraries. The release APK is about 20 KB.
 
+## Weather
+
+The top-left corner shows the current weather from [Open-Meteo](https://open-meteo.com) (no account needed). The city defaults to Kraljevo. To change it:
+
+```sh
+adb shell am start -n app.metak/.HomeActivity --es city "Novi Sad"
+```
+
 ## How Continue Watching works
 
 Nuvio and SmartTube publish what you are watching to Android TV's system **Watch Next** table. Metak reads that table and keeps only rows from those two apps. This needs the *TV listings* permission, which Metak asks for on first launch. To grant it over adb instead:
