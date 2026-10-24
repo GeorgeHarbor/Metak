@@ -48,6 +48,7 @@ public class HomeActivity extends Activity {
     private ImageView dockBlur;
     private final Matrix blurMatrix = new Matrix();
     private AlertDialog picker;
+    private Drawable wallpaper;
     private View hero;
     private ImageView backdrop;
     private TextView heroTitle, heroSubtitle;
@@ -86,6 +87,7 @@ public class HomeActivity extends Activity {
         heroTitle = findViewById(R.id.hero_title);
         heroSubtitle = findViewById(R.id.hero_subtitle);
         shelf = findViewById(R.id.shelf);
+        showBackdrop(null);
         // The backdrop belongs to the hero, so fade it out as the app grid scrolls up.
         scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) ->
                 backdrop.setAlpha(Math.max(0f, 1f - y / (float) hero.getHeight())));
@@ -259,6 +261,8 @@ public class HomeActivity extends Activity {
             card.setOnFocusChangeListener((v, focused) -> {
                 zoom(v, focused);
                 if (focused) showHero(item);
+                // Only a focused card owns the background; otherwise it is the wallpaper.
+                showBackdrop(focused ? item.image : null);
             });
             card.setOnClickListener(v -> open(item));
             shelf.addView(card);
@@ -271,17 +275,25 @@ public class HomeActivity extends Activity {
 
     private void showHero(WatchNext.Item item) {
         if (item == null) {
-            backdrop.setImageDrawable(null);
             heroTitle.setText(R.string.continue_watching);
             boolean allowed = checkSelfPermission(WatchNext.PERMISSION) == PackageManager.PERMISSION_GRANTED;
             heroSubtitle.setText(allowed ? R.string.nothing_to_continue : R.string.needs_permission);
             return;
         }
-        Images.load(backdrop, item.image);
         heroTitle.setText(item.title);
         long left = (item.duration - item.position) / 60000;
         String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
         heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + " · " + meta);
+    }
+
+    private void showBackdrop(String uri) {
+        if (uri != null) {
+            Images.load(backdrop, uri);
+            return;
+        }
+        backdrop.setTag(null); // drop any artwork still loading
+        if (wallpaper == null) wallpaper = getDrawable(R.drawable.wallpaper);
+        backdrop.setImageDrawable(wallpaper);
     }
 
     private void open(WatchNext.Item item) {

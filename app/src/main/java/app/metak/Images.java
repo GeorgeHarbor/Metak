@@ -29,13 +29,16 @@ final class Images {
     static void load(ImageView view, String uri) {
         view.setTag(uri);
         Bitmap cached = uri == null ? null : CACHE.get(uri);
-        view.setImageBitmap(cached);
-        if (uri == null || cached != null) return;
+        // On a miss keep whatever is showing (e.g. the wallpaper) until the new image arrives.
+        if (uri == null || cached != null) {
+            view.setImageBitmap(cached);
+            return;
+        }
         POOL.execute(() -> {
             Bitmap bitmap = decode(view, uri);
             if (bitmap != null) CACHE.put(uri, bitmap);
             MAIN.post(() -> {
-                if (uri.equals(view.getTag())) view.setImageBitmap(bitmap);
+                if (bitmap != null && uri.equals(view.getTag())) view.setImageBitmap(bitmap);
             });
         });
     }
