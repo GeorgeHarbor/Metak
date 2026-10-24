@@ -81,6 +81,27 @@ public class HomeActivity extends Activity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Home pressed while Metak is already showing: hand over to the other launcher, so Home toggles.
+        if (hasWindowFocus() && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            Intent other = otherHome();
+            if (other != null) start(other);
+        }
+    }
+
+    private Intent otherHome() {
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, 0)) {
+            ActivityInfo a = ri.activityInfo;
+            // Negative priority marks the Settings fallback home, which is not a real launcher.
+            if (a.packageName.equals(getPackageName()) || ri.priority < 0) continue;
+            return home.setClassName(a.packageName, a.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        return null;
+    }
+
+    @Override
     public void onBackPressed() {
         // Home has nowhere to go back to; jump to the top like tvOS does.
         scroll.smoothScrollTo(0, 0);
