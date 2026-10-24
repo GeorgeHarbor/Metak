@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <ScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:orientation="vertical"
+            android:paddingHorizontal="48dp"
+            android:paddingTop="96dp"
+            android:paddingBottom="48dp">
+
+            <GridLayout
+                android:id="@+id/apps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:clipChildren="false"
+                android:columnCount="5" />
+        </LinearLayout>
+    </ScrollView>
+
+    <TextClock
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="32dp"
+        android:format12Hour="h:mm"
+        android:format24Hour="H:mm"
+        android:fontFamily="sans-serif-medium"
+        android:shadowColor="#99000000"
+        android:shadowRadius="8"
+        android:textColor="#F5F5F7"
+        android:textSize="22sp" />
+</FrameLayout>
