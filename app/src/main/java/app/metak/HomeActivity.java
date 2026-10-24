@@ -1,5 +1,6 @@
 package app.metak;
 
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
@@ -7,7 +8,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
@@ -16,14 +19,17 @@ import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -31,9 +37,14 @@ import android.widget.Toast;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class HomeActivity extends Activity {
     private static final String DOCK_KEY = "dock";
@@ -42,6 +53,8 @@ public class HomeActivity extends Activity {
     private static final long BACKDROP_FADE_MS = 400;
     private static final long WEATHER_TTL_MS = 30 * 60 * 1000;
     private static final String CITY_KEY = "city";
+    private static final String ORDER_KEY = "order";
+    private static final String HIDDEN_KEY = "hidden";
     // Starts like the stock launcher's dock; missing apps are skipped.
     private static final String DEFAULT_DOCK = "com.nuvio.tv,com.georgeharbor.youtube,com.spotify.tv.android,"
             + "com.limelight,com.netflix.ninja,com.plexapp.android,org.jellyfin.androidtv";
@@ -63,6 +76,12 @@ public class HomeActivity extends Activity {
     private TextView heroTitle, heroSubtitle;
     private LinearLayout shelf;
     private HorizontalScrollView shelfScroll;
+    private final Set<String> installed = new HashSet<>();
+    private final List<ResolveInfo> gridApps = new ArrayList<>();
+    private String moving; // package being moved with the arrows, or null
+    private boolean movingInDock;
+    private ObjectAnimator wiggle;
+    private PopupWindow menu;
 
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
@@ -123,8 +142,15 @@ public class HomeActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        if (menu != null) menu.dismiss();
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        finishMove();
         loadShelf(); // progress changes while the user is away in Nuvio or SmartTube
         loadWeather();
     }
@@ -182,6 +208,15 @@ public class HomeActivity extends Activity {
         Intent query = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> list = pm.queryIntentActivities(query, 0);
         list.sort(new ResolveInfo.DisplayNameComparator(pm));
+        // Apps the user moved keep their spot; the rest follow alphabetically (the sort is stable).
+        List<String> order = savedList(ORDER_KEY, "");
+        list.sort(Comparator.comparingInt(ri -> {
+            int i = order.indexOf(ri.activityInfo.packageName);
+            return i < 0 ? Integer.MAX_VALUE : i;
+        }));
+        installed.clear();
+        for (ResolveInfo ri : list) installed.add(ri.activityInfo.packageName);
+        gridApps.clear();
 
         List<String> docked = dockPackages();
         View[] dockTiles = new View[docked.size()];
@@ -216,15 +251,19 @@ public class HomeActivity extends Activity {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
             tile.setOnClickListener(v -> start(launch));
             tile.setOnLongClickListener(v -> {
-                toggleDock(a.packageName);
+                appMenu(v, a, slot >= 0);
                 return true;
             });
             tile.setOnFocusChangeListener((v, focused) -> {
                 zoom(icon, focused);
                 if (slot < 0) label.setVisibility(focused ? View.VISIBLE : View.INVISIBLE);
             });
-            if (slot >= 0) dockTiles[slot] = tile;
-            else apps.addView(tile);
+            if (slot >= 0) {
+                dockTiles[slot] = tile;
+            } else {
+                apps.addView(tile);
+                gridApps.add(ri);
+            }
         }
         for (View tile : dockTiles) {
             if (tile != null) dock.addView(tile);
@@ -232,27 +271,173 @@ public class HomeActivity extends Activity {
         dockFrame.setVisibility(dock.getChildCount() == 0 ? View.GONE : View.VISIBLE);
     }
 
+    /** Docked packages that are still installed, in dock order. */
     private List<String> dockPackages() {
-        String saved = getPreferences(MODE_PRIVATE).getString(DOCK_KEY, DEFAULT_DOCK);
+        List<String> docked = savedList(DOCK_KEY, DEFAULT_DOCK);
+        docked.removeIf(pkg -> !installed.contains(pkg));
+        return docked;
+    }
+
+    private List<String> savedList(String key, String fallback) {
+        String saved = getPreferences(MODE_PRIVATE).getString(key, fallback);
         return new ArrayList<>(Arrays.asList(saved.isEmpty() ? new String[0] : saved.split(",")));
     }
 
-    private void toggleDock(String pkg) {
-        List<String> docked = dockPackages();
-        int message = R.string.dock_removed;
-        if (!docked.remove(pkg)) {
-            if (docked.size() >= DOCK_SIZE) {
-                Toast.makeText(this, R.string.dock_full, Toast.LENGTH_SHORT).show();
-                return;
+    private void saveList(String key, List<String> values) {
+        getPreferences(MODE_PRIVATE).edit().putString(key, String.join(",", values)).apply();
+    }
+
+    /** Apple-style context menu: a small rounded panel anchored to the item, not a centered dialog. */
+    private void showMenu(View anchor, Map<String, Runnable> options) {
+        boolean[] holding = {true};
+        ScrollView panel = new ScrollView(this) {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                // The menu opens while OK is still held; its repeats and release must not pick the first row.
+                boolean ok = e.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER || e.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+                if (holding[0] && ok) {
+                    if (e.getAction() == KeyEvent.ACTION_UP) holding[0] = false;
+                    return true;
+                }
+                holding[0] = false;
+                return super.dispatchKeyEvent(e);
             }
-            docked.add(pkg);
-            message = R.string.dock_added;
+        };
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setPadding(dp(6), dp(6), dp(6), dp(6));
+        for (Map.Entry<String, Runnable> option : options.entrySet()) {
+            TextView row = (TextView) getLayoutInflater().inflate(R.layout.menu_item, rows, false);
+            row.setText(option.getKey());
+            if (option.getKey().equals(getString(R.string.menu_uninstall)) || option.getKey().equals(getString(R.string.menu_remove))) {
+                row.setTextColor(getColorStateList(R.color.menu_destructive));
+            }
+            row.setOnClickListener(v -> {
+                menu.dismiss();
+                option.getValue().run();
+            });
+            rows.addView(row);
         }
-        getPreferences(MODE_PRIVATE).edit().putString(DOCK_KEY, String.join(",", docked)).apply();
+        panel.addView(rows);
+        panel.setBackgroundResource(R.drawable.menu_bg);
+        panel.setClipToOutline(true);
+        panel.setVerticalScrollBarEnabled(false);
+
+        menu = new PopupWindow(panel, dp(240), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        if (options.size() > 8) menu.setHeight(dp(8 * 44 + 12)); // long lists (Replace with…) scroll
+        menu.setElevation(dp(16));
+        menu.setAnimationStyle(android.R.style.Animation_Dialog);
+        menu.showAsDropDown(anchor, 0, dp(10)); // flips above the item when there is no room below
+        rows.getChildAt(0).requestFocus();
+    }
+
+    private void appMenu(View tile, ActivityInfo a, boolean docked) {
+        Map<String, Runnable> options = new LinkedHashMap<>();
+        if (docked) {
+            options.put(getString(R.string.menu_replace), () -> replaceInDock(tile, a.packageName));
+        } else if (dock.getChildCount() < DOCK_SIZE) {
+            options.put(getString(R.string.menu_add_to_dock), () -> addToDock(a.packageName));
+        }
+        options.put(getString(R.string.menu_move), () -> startMove(a.packageName, docked));
+        if ((a.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+            options.put(getString(R.string.menu_uninstall), () -> start(new Intent(Intent.ACTION_DELETE,
+                    Uri.parse("package:" + a.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
+        }
+        showMenu(tile, options);
+    }
+
+    private void replaceInDock(View tile, String pkg) {
+        Map<String, Runnable> options = new LinkedHashMap<>();
+        for (ResolveInfo ri : gridApps) {
+            String chosen = ri.activityInfo.packageName;
+            options.put(ri.loadLabel(getPackageManager()).toString(), () -> {
+                List<String> docked = dockPackages();
+                docked.set(docked.indexOf(pkg), chosen);
+                saveList(DOCK_KEY, docked);
+                loadApps();
+                focusTile(chosen);
+            });
+        }
+        showMenu(tile, options);
+    }
+
+    private void addToDock(String pkg) {
+        List<String> docked = dockPackages();
+        docked.add(pkg);
+        saveList(DOCK_KEY, docked);
         loadApps();
-        View moved = findViewById(R.id.content).findViewWithTag(pkg);
-        if (moved != null) moved.requestFocus();
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        focusTile(pkg);
+        Toast.makeText(this, R.string.dock_added, Toast.LENGTH_SHORT).show();
+    }
+
+    private View focusTile(String pkg) {
+        View tile = findViewById(R.id.content).findViewWithTag(pkg);
+        if (tile != null) tile.requestFocus();
+        return tile;
+    }
+
+    private void startMove(String pkg, boolean inDock) {
+        moving = pkg;
+        movingInDock = inDock;
+        wiggleMoving();
+        Toast.makeText(this, R.string.move_hint, Toast.LENGTH_SHORT).show();
+    }
+
+    /** tvOS-style wiggle on the tile being moved. Re-run after every reload, since tiles are rebuilt. */
+    private void wiggleMoving() {
+        if (wiggle != null) wiggle.cancel();
+        View tile = focusTile(moving);
+        if (tile == null) {
+            moving = null;
+            return;
+        }
+        wiggle = ObjectAnimator.ofFloat(tile.findViewById(R.id.icon), View.ROTATION, -2f, 2f);
+        wiggle.setDuration(120);
+        wiggle.setRepeatCount(ObjectAnimator.INFINITE);
+        wiggle.setRepeatMode(ObjectAnimator.REVERSE);
+        wiggle.start();
+    }
+
+    private void shiftMoving(int delta) {
+        List<String> order = new ArrayList<>();
+        if (movingInDock) order = dockPackages();
+        else for (ResolveInfo ri : gridApps) order.add(ri.activityInfo.packageName);
+        int from = order.indexOf(moving);
+        int to = Math.max(0, Math.min(order.size() - 1, from + delta));
+        if (from < 0 || to == from) return;
+        order.remove(from);
+        order.add(to, moving);
+        saveList(movingInDock ? DOCK_KEY : ORDER_KEY, order);
+        loadApps();
+        wiggleMoving();
+    }
+
+    private void finishMove() {
+        if (wiggle != null) {
+            wiggle.cancel();
+            ((View) wiggle.getTarget()).setRotation(0);
+        }
+        moving = null;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        if (moving == null) return super.dispatchKeyEvent(e);
+        // While moving, the arrows move the app instead of the focus.
+        if (e.getAction() == KeyEvent.ACTION_DOWN) {
+            int columns = movingInDock ? 0 : apps.getColumnCount();
+            switch (e.getKeyCode()) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: shiftMoving(-1); break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: shiftMoving(1); break;
+                case KeyEvent.KEYCODE_DPAD_UP: shiftMoving(-columns); break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: shiftMoving(columns); break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_BACK: finishMove(); break;
+                default: break;
+            }
+        }
+        return true;
     }
 
     /** adb shell am start -n app.metak/.HomeActivity --es city "Novi Sad" */
@@ -285,13 +470,34 @@ public class HomeActivity extends Activity {
     }
 
     private void loadShelf() {
+        loadShelf(-1);
+    }
+
+    /** focusIndex: the card to focus afterwards, or -1 for the default (the dock). */
+    private void loadShelf(int focusIndex) {
         new Thread(() -> {
             List<WatchNext.Item> items = WatchNext.load(getContentResolver());
-            runOnUiThread(() -> showShelf(items));
+            // Other apps' rows can't be deleted by a launcher, so "removed" ones are hidden here.
+            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            Set<String> hidden = new HashSet<>(prefs.getStringSet(HIDDEN_KEY, Collections.emptySet()));
+            Set<String> current = new HashSet<>();
+            for (WatchNext.Item item : items) current.add(item.key());
+            // Forget rows that are gone or were watched again; skip when the load failed and returned nothing.
+            if (!items.isEmpty() && hidden.retainAll(current)) prefs.edit().putStringSet(HIDDEN_KEY, hidden).apply();
+            items.removeIf(item -> hidden.contains(item.key()));
+            runOnUiThread(() -> showShelf(items, focusIndex));
         }).start();
     }
 
-    private void showShelf(List<WatchNext.Item> items) {
+    private void hideFromShelf(WatchNext.Item item, int index) {
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        Set<String> hidden = new HashSet<>(prefs.getStringSet(HIDDEN_KEY, Collections.emptySet()));
+        hidden.add(item.key());
+        prefs.edit().putStringSet(HIDDEN_KEY, hidden).apply();
+        loadShelf(index);
+    }
+
+    private void showShelf(List<WatchNext.Item> items, int focusIndex) {
         shelf.removeAllViews();
         for (WatchNext.Item item : items) {
             View card = getLayoutInflater().inflate(R.layout.card, shelf, false);
@@ -317,12 +523,22 @@ public class HomeActivity extends Activity {
                 if (focused && last) shelfScroll.post(() -> shelfScroll.fullScroll(View.FOCUS_RIGHT));
             });
             card.setOnClickListener(v -> open(item));
+            int index = shelf.getChildCount();
+            card.setOnLongClickListener(v -> {
+                Map<String, Runnable> options = new LinkedHashMap<>();
+                options.put(getString(R.string.menu_remove), () -> hideFromShelf(item, index));
+                showMenu(v, options);
+                return true;
+            });
             shelf.addView(card);
         }
         showHero(items.isEmpty() ? null : items.get(0));
         // With no cards there is nothing to focus, so the empty-state hint stays readable.
         showHeroText(items.isEmpty() || shelf.hasFocus());
-        focusDefault(); // runs on every return home, since the shelf reloads in onResume
+        // Stay on the row after removing a card; otherwise (every return home) start at the dock.
+        View card = focusIndex < 0 ? null : shelf.getChildAt(Math.min(focusIndex, shelf.getChildCount() - 1));
+        if (card != null) card.requestFocus();
+        else focusDefault();
     }
 
     private void showHero(WatchNext.Item item) {

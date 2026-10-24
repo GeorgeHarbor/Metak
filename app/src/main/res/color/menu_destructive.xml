@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Apple's system red for destructive actions -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="#D70015" android:state_focused="true" />
+    <item android:color="#FF453A" />
+</selector>

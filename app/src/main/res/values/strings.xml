@@ -5,7 +5,11 @@
     <string name="needs_permission">Allow TV listings access to see Continue Watching from Nuvio and SmartTube.</string>
     <string name="time_left">%1$s · %2$d min left</string>
     <string name="dock_added">Added to the dock</string>
-    <string name="dock_removed">Removed from the dock</string>
-    <string name="dock_full">The dock is full. Long-press an app in it to remove it first.</string>
+    <string name="menu_remove">Remove from Continue Watching</string>
+    <string name="menu_replace">Replace with…</string>
+    <string name="menu_add_to_dock">Add to the dock</string>
+    <string name="menu_move">Move</string>
+    <string name="menu_uninstall">Uninstall</string>
+    <string name="move_hint">Use the arrows to move it, then press OK</string>
     <string name="pick_launcher">Choose a home screen</string>
 </resources>

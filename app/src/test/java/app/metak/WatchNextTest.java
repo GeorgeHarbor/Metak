@@ -30,6 +30,7 @@ public class WatchNextTest {
         assertEquals(-1, items.get(0).progress());
         assertEquals("Nuvio", items.get(1).source());
         assertEquals(500, items.get(1).progress());
+        assertEquals("com.nuvio.tv/0@10", items.get(1).key());
     }
 
     private static WatchNext.Item item(String pkg, long lastEngaged, long position, long duration) {

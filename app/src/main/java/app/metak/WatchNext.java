@@ -12,7 +12,12 @@ final class WatchNext {
 
     static final class Item {
         String pkg, title, subtitle, image, intentUri;
-        long position, duration, lastEngaged;
+        long id, position, duration, lastEngaged;
+
+        /** Identifies this row as last watched; watching it again changes the key, so a hidden row comes back. */
+        String key() {
+            return pkg + "/" + id + "@" + lastEngaged;
+        }
 
         String source() {
             return pkg.startsWith("com.nuvio") ? "Nuvio" : "YouTube";
@@ -42,6 +47,7 @@ final class WatchNext {
                 Item item = new Item();
                 item.pkg = string(c, WatchNextPrograms.COLUMN_PACKAGE_NAME);
                 if (!wanted(item.pkg) || number(c, WatchNextPrograms.COLUMN_BROWSABLE, 1) == 0) continue;
+                item.id = number(c, WatchNextPrograms._ID, 0);
                 item.title = string(c, WatchNextPrograms.COLUMN_TITLE);
                 item.subtitle = string(c, WatchNextPrograms.COLUMN_EPISODE_TITLE);
                 item.image = string(c, WatchNextPrograms.COLUMN_THUMBNAIL_URI);
