@@ -15,12 +15,9 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
-import android.graphics.RenderEffect;
-import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
@@ -82,6 +79,7 @@ public class HomeActivity extends Activity {
     private boolean movingInDock;
     private ObjectAnimator wiggle;
     private PopupWindow menu;
+    private Bitmap blurSource; // the background the dock blur was made from
 
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
@@ -100,9 +98,6 @@ public class HomeActivity extends Activity {
         dockFrame = findViewById(R.id.dock_frame);
         dockBlur = findViewById(R.id.dock_blur);
         dockFrame.setClipToOutline(true);
-        if (Build.VERSION.SDK_INT >= 31) {
-            dockBlur.setRenderEffect(RenderEffect.createBlurEffect(dp(24), dp(24), Shader.TileMode.CLAMP));
-        }
         dockBlur.getViewTreeObserver().addOnPreDrawListener(() -> syncDockBlur());
         dock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             ViewGroup.LayoutParams lp = dockBlur.getLayoutParams();
@@ -626,21 +621,29 @@ public class HomeActivity extends Activity {
     private boolean syncDockBlur() {
         Drawable d = backdrops[front].getDrawable();
         Bitmap bitmap = d instanceof BitmapDrawable ? ((BitmapDrawable) d).getBitmap() : null;
-        Drawable current = dockBlur.getDrawable();
         if (bitmap == null) {
-            if (current != null) dockBlur.setImageDrawable(null);
+            if (dockBlur.getDrawable() != null) dockBlur.setImageDrawable(null);
+            blurSource = null;
             return true;
         }
-        if (!(current instanceof BitmapDrawable) || ((BitmapDrawable) current).getBitmap() != bitmap) {
-            dockBlur.setImageBitmap(bitmap);
+        if (bitmap != blurSource) {
+            // Blur once per background: a tiny copy stretched back up is a cheap, smooth blur,
+            // so scrolling only moves a ready-made image instead of re-blurring every frame.
+            blurSource = bitmap;
+            Bitmap small = bitmap;
+            while (small.getWidth() > 96) {
+                small = Bitmap.createScaledBitmap(small, small.getWidth() / 2, Math.max(1, small.getHeight() / 2), true);
+            }
+            dockBlur.setImageBitmap(small);
         }
 
         // Same math as the backdrop's centerCrop, shifted by the dock's offset from the backdrop.
         float scale = Math.max(backdrop.getWidth() / (float) bitmap.getWidth(), backdrop.getHeight() / (float) bitmap.getHeight());
+        float blurScale = scale * bitmap.getWidth() / ((BitmapDrawable) dockBlur.getDrawable()).getBitmap().getWidth();
         int[] dockAt = new int[2], backdropAt = new int[2];
         dockBlur.getLocationInWindow(dockAt);
         backdrop.getLocationInWindow(backdropAt);
-        blurMatrix.setScale(scale, scale);
+        blurMatrix.setScale(blurScale, blurScale);
         blurMatrix.postTranslate(
                 (backdrop.getWidth() - bitmap.getWidth() * scale) / 2 + backdropAt[0] - dockAt[0],
                 (backdrop.getHeight() - bitmap.getHeight() * scale) / 2 + backdropAt[1] - dockAt[1]);
