@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -53,6 +54,7 @@ public class HomeActivity extends Activity {
     private ImageView backdrop;
     private TextView heroTitle, heroSubtitle;
     private LinearLayout shelf;
+    private HorizontalScrollView shelfScroll;
 
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
@@ -87,6 +89,7 @@ public class HomeActivity extends Activity {
         heroTitle = findViewById(R.id.hero_title);
         heroSubtitle = findViewById(R.id.hero_subtitle);
         shelf = findViewById(R.id.shelf);
+        shelfScroll = findViewById(R.id.shelf_scroll);
         showBackdrop(null);
         // The backdrop belongs to the hero, so fade it out as the app grid scrolls up.
         scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) ->
@@ -258,11 +261,15 @@ public class HomeActivity extends Activity {
             ProgressBar progress = card.findViewById(R.id.progress);
             if (item.progress() < 0) progress.setVisibility(View.GONE);
             else progress.setProgress(item.progress());
+            boolean first = shelf.getChildCount() == 0, last = shelf.getChildCount() == items.size() - 1;
             card.setOnFocusChangeListener((v, focused) -> {
                 zoom(v, focused);
                 if (focused) showHero(item);
                 // Only a focused card owns the background; otherwise it is the wallpaper.
                 showBackdrop(focused ? item.image : null);
+                // The ends snap fully into view instead of stopping just past the card edge.
+                if (focused && first) shelfScroll.post(() -> shelfScroll.smoothScrollTo(0, 0));
+                if (focused && last) shelfScroll.post(() -> shelfScroll.fullScroll(View.FOCUS_RIGHT));
             });
             card.setOnClickListener(v -> open(item));
             shelf.addView(card);
