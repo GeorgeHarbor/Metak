@@ -3,7 +3,8 @@
 A lightweight Android TV launcher modeled on the Apple TV home screen.
 
 - **Continue Watching hero:** the newest titles from **Nuvio** and **SmartTube**, with a full-screen backdrop, the episode name, time left and a progress bar. Select a card to resume right where you stopped.
-- **App grid:** every TV app as a rounded banner that zooms on focus, tvOS style.
+- **Dock:** up to seven favorite apps in a frosted bar above the grid. Long-press any app to add it to the dock or remove it.
+- **App grid:** every other TV app as a rounded banner that zooms on focus, tvOS style.
 - **Tiny:** plain Java on the framework only, no libraries. The release APK is about 20 KB.
 
 ## How Continue Watching works
@@ -27,7 +28,7 @@ Then press Home and choose **Metak**. On Google TV, which hides the home picker,
 adb shell cmd package set-home-activity app.metak/.HomeActivity
 ```
 
-**Switching launchers:** with Metak as the default, pressing Home while Metak is already on screen opens your other launcher. Press Home again to come back. To go back to the stock launcher for good:
+**Switching launchers:** with Metak as the default, every Home press asks which home screen to open. Some TVs never show Android's own chooser, so Metak shows one. To go back to the stock launcher for good:
 
 ```sh
 adb shell cmd package set-home-activity <stock.launcher.package>
