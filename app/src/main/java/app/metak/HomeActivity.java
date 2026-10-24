@@ -10,9 +10,16 @@ import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.graphics.Matrix;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -36,6 +43,9 @@ public class HomeActivity extends Activity {
     private ScrollView scroll;
     private GridLayout apps;
     private LinearLayout dock;
+    private View dockFrame;
+    private ImageView dockBlur;
+    private final Matrix blurMatrix = new Matrix();
     private AlertDialog picker;
     private View hero;
     private ImageView backdrop;
@@ -56,6 +66,20 @@ public class HomeActivity extends Activity {
         scroll = findViewById(R.id.scroll);
         apps = findViewById(R.id.apps);
         dock = findViewById(R.id.dock);
+        dockFrame = findViewById(R.id.dock_frame);
+        dockBlur = findViewById(R.id.dock_blur);
+        dockFrame.setClipToOutline(true);
+        if (Build.VERSION.SDK_INT >= 31) {
+            dockBlur.setRenderEffect(RenderEffect.createBlurEffect(dp(24), dp(24), Shader.TileMode.CLAMP));
+        }
+        dockBlur.getViewTreeObserver().addOnPreDrawListener(() -> syncDockBlur());
+        dock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            ViewGroup.LayoutParams lp = dockBlur.getLayoutParams();
+            if (lp.width == v.getWidth() && lp.height == v.getHeight()) return;
+            lp.width = v.getWidth();
+            lp.height = v.getHeight();
+            dockBlur.post(dockBlur::requestLayout);
+        });
         hero = findViewById(R.id.hero);
         backdrop = findViewById(R.id.backdrop);
         heroTitle = findViewById(R.id.hero_title);
@@ -182,7 +206,7 @@ public class HomeActivity extends Activity {
         for (View tile : dockTiles) {
             if (tile != null) dock.addView(tile);
         }
-        dock.setVisibility(dock.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+        dockFrame.setVisibility(dock.getChildCount() == 0 ? View.GONE : View.VISIBLE);
     }
 
     private List<String> dockPackages() {
@@ -265,6 +289,34 @@ public class HomeActivity extends Activity {
         }
         if (intent == null) intent = getPackageManager().getLeanbackLaunchIntentForPackage(item.pkg);
         if (intent != null) start(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    }
+
+    /** Mirror the backdrop under the dock, positioned exactly where it sits on screen. Returns true to keep drawing. */
+    private boolean syncDockBlur() {
+        Drawable d = backdrop.getDrawable();
+        Bitmap bitmap = d instanceof BitmapDrawable ? ((BitmapDrawable) d).getBitmap() : null;
+        Drawable current = dockBlur.getDrawable();
+        if (bitmap == null) {
+            if (current != null) dockBlur.setImageDrawable(null);
+            return true;
+        }
+        if (!(current instanceof BitmapDrawable) || ((BitmapDrawable) current).getBitmap() != bitmap) {
+            dockBlur.setImageBitmap(bitmap);
+        }
+
+        // Same math as the backdrop's centerCrop, shifted by the dock's offset from the backdrop.
+        float scale = Math.max(backdrop.getWidth() / (float) bitmap.getWidth(), backdrop.getHeight() / (float) bitmap.getHeight());
+        int[] dockAt = new int[2], backdropAt = new int[2];
+        dockBlur.getLocationInWindow(dockAt);
+        backdrop.getLocationInWindow(backdropAt);
+        blurMatrix.setScale(scale, scale);
+        blurMatrix.postTranslate(
+                (backdrop.getWidth() - bitmap.getWidth() * scale) / 2 + backdropAt[0] - dockAt[0],
+                (backdrop.getHeight() - bitmap.getHeight() * scale) / 2 + backdropAt[1] - dockAt[1]);
+        // Only touch the view when something moved, or every frame would schedule another.
+        if (!blurMatrix.equals(dockBlur.getImageMatrix())) dockBlur.setImageMatrix(blurMatrix);
+        if (dockBlur.getAlpha() != backdrop.getAlpha()) dockBlur.setAlpha(backdrop.getAlpha());
+        return true;
     }
 
     void start(Intent intent) {

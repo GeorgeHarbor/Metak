@@ -83,16 +83,32 @@
                 </HorizontalScrollView>
             </LinearLayout>
 
-            <LinearLayout
-                android:id="@+id/dock"
+            <FrameLayout
+                android:id="@+id/dock_frame"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginBottom="24dp"
-                android:background="@drawable/dock_bg"
-                android:clipChildren="false"
-                android:orientation="horizontal"
-                android:padding="6dp" />
+                android:background="@drawable/dock_clip">
+
+                <!-- Blurred copy of the backdrop, lined up with it in code: frosted glass.
+                     Sized to the dock in code so the bitmap never stretches the frame. -->
+                <ImageView
+                    android:id="@+id/dock_blur"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:importantForAccessibility="no"
+                    android:scaleType="matrix" />
+
+                <LinearLayout
+                    android:id="@+id/dock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/dock_bg"
+                    android:clipChildren="false"
+                    android:orientation="horizontal"
+                    android:padding="6dp" />
+            </FrameLayout>
 
             <GridLayout
                 android:id="@+id/apps"
