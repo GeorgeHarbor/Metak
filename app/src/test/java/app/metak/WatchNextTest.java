@@ -26,7 +26,7 @@ public class WatchNextTest {
         items.add(item("org.smarttube.stable", 20, 0, 0));
         WatchNext.sort(items);
 
-        assertEquals("SmartTube", items.get(0).source());
+        assertEquals("YouTube", items.get(0).source());
         assertEquals(-1, items.get(0).progress());
         assertEquals("Nuvio", items.get(1).source());
         assertEquals(500, items.get(1).progress());

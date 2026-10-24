@@ -15,7 +15,7 @@ final class WatchNext {
         long position, duration, lastEngaged;
 
         String source() {
-            return pkg.startsWith("com.nuvio") ? "Nuvio" : "SmartTube";
+            return pkg.startsWith("com.nuvio") ? "Nuvio" : "YouTube";
         }
 
         /** Playback progress in thousandths, or -1 when the app did not report a duration. */
