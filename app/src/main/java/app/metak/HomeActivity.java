@@ -19,6 +19,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -330,8 +331,23 @@ public class HomeActivity extends Activity {
         if (options.size() > 8) menu.setHeight(dp(8 * 44 + 12)); // long lists (Replace with…) scroll
         menu.setElevation(dp(16));
         menu.setAnimationStyle(android.R.style.Animation_Dialog);
-        menu.showAsDropDown(anchor, 0, dp(10)); // flips above the item when there is no room below
+        // Below the item when it fits, otherwise above, and always fully on screen.
+        int height = menu.getHeight() > 0 ? menu.getHeight() : measuredHeight(panel, dp(240));
+        int[] at = new int[2];
+        anchor.getLocationOnScreen(at);
+        int screen = getWindow().getDecorView().getHeight(), gap = dp(10);
+        int y = at[1] + anchor.getHeight() + gap;
+        if (y + height > screen - gap) y = at[1] - gap - height;
+        y = Math.max(gap, Math.min(y, screen - gap - height));
+        int x = Math.max(gap, Math.min(at[0], getWindow().getDecorView().getWidth() - gap - dp(240)));
+        menu.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y);
         rows.getChildAt(0).requestFocus();
+    }
+
+    private static int measuredHeight(View view, int width) {
+        view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        return view.getMeasuredHeight();
     }
 
     private void appMenu(View tile, ActivityInfo a, boolean docked) {
