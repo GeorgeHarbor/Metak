@@ -4,12 +4,26 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <ImageView
+    <!-- Two layers so a new background can fade in over the old one -->
+    <FrameLayout
         android:id="@+id/backdrop"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:importantForAccessibility="no"
-        android:scaleType="centerCrop" />
+        android:layout_height="match_parent">
+
+        <ImageView
+            android:id="@+id/backdrop_a"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <ImageView
+            android:id="@+id/backdrop_b"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
 
     <View
         android:layout_width="match_parent"

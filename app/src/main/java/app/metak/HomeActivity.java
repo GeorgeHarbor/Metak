@@ -39,6 +39,7 @@ public class HomeActivity extends Activity {
     private static final String DOCK_KEY = "dock";
     private static final int DOCK_SIZE = 7;
     private static final float DOCK_GLASS_OPACITY = 0.7f;
+    private static final long BACKDROP_FADE_MS = 400;
     private static final long WEATHER_TTL_MS = 30 * 60 * 1000;
     private static final String CITY_KEY = "city";
     // Starts like the stock launcher's dock; missing apps are skipped.
@@ -55,7 +56,10 @@ public class HomeActivity extends Activity {
     private Drawable wallpaper;
     private long weatherAt;
     private View hero;
-    private ImageView backdrop;
+    private View backdrop;
+    private ImageView[] backdrops;
+    private int front; // index of the backdrop layer currently on top
+    private String backdropUri;
     private TextView heroTitle, heroSubtitle;
     private LinearLayout shelf;
     private HorizontalScrollView shelfScroll;
@@ -90,6 +94,7 @@ public class HomeActivity extends Activity {
         });
         hero = findViewById(R.id.hero);
         backdrop = findViewById(R.id.backdrop);
+        backdrops = new ImageView[] {findViewById(R.id.backdrop_a), findViewById(R.id.backdrop_b)};
         heroTitle = findViewById(R.id.hero_title);
         heroSubtitle = findViewById(R.id.hero_subtitle);
         shelf = findViewById(R.id.shelf);
@@ -302,7 +307,11 @@ public class HomeActivity extends Activity {
                 if (focused) showHero(item);
                 showHeroText(focused);
                 // Only a focused card owns the background; otherwise it is the wallpaper.
-                showBackdrop(focused ? item.image : null);
+                // Card to card goes straight from art to art; only leaving the row brings the wallpaper back.
+                if (focused) showBackdrop(item.image);
+                else shelf.post(() -> {
+                    if (!shelf.hasFocus()) showBackdrop(null);
+                });
                 // The ends snap fully into view instead of stopping just past the card edge.
                 if (focused && first) shelfScroll.post(() -> shelfScroll.smoothScrollTo(0, 0));
                 if (focused && last) shelfScroll.post(() -> shelfScroll.fullScroll(View.FOCUS_RIGHT));
@@ -342,13 +351,38 @@ public class HomeActivity extends Activity {
     }
 
     private void showBackdrop(String uri) {
-        if (uri != null) {
-            Images.load(backdrop, uri);
+        backdropUri = uri;
+        if (uri == null) {
+            if (wallpaper == null) wallpaper = getDrawable(R.drawable.wallpaper);
+            fadeBackdrop(wallpaper);
             return;
         }
-        backdrop.setTag(null); // drop any artwork still loading
-        if (wallpaper == null) wallpaper = getDrawable(R.drawable.wallpaper);
-        backdrop.setImageDrawable(wallpaper);
+        // Until the art arrives the old background stays; a stale result is dropped.
+        Images.fetch(this, uri, bitmap -> {
+            if (bitmap != null && uri.equals(backdropUri)) fadeBackdrop(new BitmapDrawable(getResources(), bitmap));
+        });
+    }
+
+    private void fadeBackdrop(Drawable next) {
+        ImageView current = backdrops[front];
+        if (sameImage(current.getDrawable(), next)) return;
+        // A fade cut short leaves the outgoing layer half transparent; show it fully so nothing flashes black.
+        current.animate().cancel();
+        current.setAlpha(1f);
+        front ^= 1;
+        ImageView incoming = backdrops[front];
+        incoming.setImageDrawable(next);
+        incoming.setAlpha(0f);
+        incoming.bringToFront();
+        incoming.animate().alpha(1f).setDuration(BACKDROP_FADE_MS).withEndAction(() -> {
+            if (backdrops[front] != current) current.setImageDrawable(null); // free the hidden layer
+        }).start();
+    }
+
+    private static boolean sameImage(Drawable a, Drawable b) {
+        if (a == b) return true;
+        return a instanceof BitmapDrawable && b instanceof BitmapDrawable
+                && ((BitmapDrawable) a).getBitmap() == ((BitmapDrawable) b).getBitmap();
     }
 
     private void open(WatchNext.Item item) {
@@ -366,7 +400,7 @@ public class HomeActivity extends Activity {
 
     /** Mirror the backdrop under the dock, positioned exactly where it sits on screen. Returns true to keep drawing. */
     private boolean syncDockBlur() {
-        Drawable d = backdrop.getDrawable();
+        Drawable d = backdrops[front].getDrawable();
         Bitmap bitmap = d instanceof BitmapDrawable ? ((BitmapDrawable) d).getBitmap() : null;
         Drawable current = dockBlur.getDrawable();
         if (bitmap == null) {

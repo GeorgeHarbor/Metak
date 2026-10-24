@@ -1,5 +1,6 @@
 package app.metak;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -13,6 +14,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /** Tiny poster loader: http(s) and content URIs, downsampled, memory-cached. */
 final class Images {
@@ -28,23 +30,31 @@ final class Images {
 
     static void load(ImageView view, String uri) {
         view.setTag(uri);
-        Bitmap cached = uri == null ? null : CACHE.get(uri);
-        // On a miss keep whatever is showing (e.g. the wallpaper) until the new image arrives.
-        if (uri == null || cached != null) {
-            view.setImageBitmap(cached);
+        if (uri == null) {
+            view.setImageBitmap(null);
             return;
         }
-        POOL.execute(() -> {
-            Bitmap bitmap = decode(view, uri);
-            if (bitmap != null) CACHE.put(uri, bitmap);
-            MAIN.post(() -> {
-                if (bitmap != null && uri.equals(view.getTag())) view.setImageBitmap(bitmap);
-            });
+        fetch(view.getContext(), uri, bitmap -> {
+            if (bitmap != null && uri.equals(view.getTag())) view.setImageBitmap(bitmap);
         });
     }
 
-    private static Bitmap decode(ImageView view, String uri) {
-        try (InputStream in = open(view, uri)) {
+    /** Delivers the bitmap (or null on failure) on the main thread; right away when cached. */
+    static void fetch(Context context, String uri, Consumer<Bitmap> done) {
+        Bitmap cached = CACHE.get(uri);
+        if (cached != null) {
+            done.accept(cached);
+            return;
+        }
+        POOL.execute(() -> {
+            Bitmap bitmap = decode(context, uri);
+            if (bitmap != null) CACHE.put(uri, bitmap);
+            MAIN.post(() -> done.accept(bitmap));
+        });
+    }
+
+    private static Bitmap decode(Context context, String uri) {
+        try (InputStream in = open(context, uri)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[16 << 10];
             for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
@@ -62,9 +72,9 @@ final class Images {
         }
     }
 
-    private static InputStream open(ImageView view, String uri) throws Exception {
+    private static InputStream open(Context context, String uri) throws Exception {
         if (!uri.startsWith("http")) {
-            return view.getContext().getContentResolver().openInputStream(Uri.parse(uri));
+            return context.getContentResolver().openInputStream(Uri.parse(uri));
         }
         HttpURLConnection c = (HttpURLConnection) new URL(uri).openConnection();
         c.setConnectTimeout(5000);
