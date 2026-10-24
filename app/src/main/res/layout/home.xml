@@ -83,6 +83,17 @@
                 </HorizontalScrollView>
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/dock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/dock_bg"
+                android:clipChildren="false"
+                android:orientation="horizontal"
+                android:padding="6dp" />
+
             <GridLayout
                 android:id="@+id/apps"
                 android:layout_width="wrap_content"

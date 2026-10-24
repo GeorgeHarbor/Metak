@@ -4,4 +4,7 @@
     <string name="nothing_to_continue">Start something in Nuvio or SmartTube and it shows up here.</string>
     <string name="needs_permission">Allow TV listings access to see Continue Watching from Nuvio and SmartTube.</string>
     <string name="time_left">%1$s · %2$d min left</string>
+    <string name="dock_added">Added to the dock</string>
+    <string name="dock_removed">Removed from the dock</string>
+    <string name="dock_full">The dock is full. Long-press an app in it to remove it first.</string>
 </resources>

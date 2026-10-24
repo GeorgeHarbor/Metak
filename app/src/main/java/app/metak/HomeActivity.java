@@ -18,12 +18,22 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class HomeActivity extends Activity {
+    private static final String DOCK_KEY = "dock";
+    private static final int DOCK_SIZE = 7;
+    // Starts like the stock launcher's dock; missing apps are skipped.
+    private static final String DEFAULT_DOCK = "com.nuvio.tv,com.georgeharbor.youtube,com.spotify.tv.android,"
+            + "com.limelight,com.netflix.ninja,com.plexapp.android,org.jellyfin.androidtv";
+
     private ScrollView scroll;
     private GridLayout apps;
+    private LinearLayout dock;
     private View hero;
     private ImageView backdrop;
     private TextView heroTitle, heroSubtitle;
@@ -42,6 +52,7 @@ public class HomeActivity extends Activity {
         setContentView(R.layout.home);
         scroll = findViewById(R.id.scroll);
         apps = findViewById(R.id.apps);
+        dock = findViewById(R.id.dock);
         hero = findViewById(R.id.hero);
         backdrop = findViewById(R.id.backdrop);
         heroTitle = findViewById(R.id.hero_title);
@@ -113,12 +124,17 @@ public class HomeActivity extends Activity {
         List<ResolveInfo> list = pm.queryIntentActivities(query, 0);
         list.sort(new ResolveInfo.DisplayNameComparator(pm));
 
+        List<String> docked = dockPackages();
+        View[] dockTiles = new View[docked.size()];
         apps.removeAllViews();
+        dock.removeAllViews();
         for (ResolveInfo ri : list) {
             ActivityInfo a = ri.activityInfo;
             if (a.packageName.equals(getPackageName())) continue;
 
-            View tile = getLayoutInflater().inflate(R.layout.app, apps, false);
+            int slot = docked.indexOf(a.packageName);
+            View tile = getLayoutInflater().inflate(R.layout.app, slot >= 0 ? dock : apps, false);
+            tile.setTag(a.packageName);
             ImageView icon = tile.findViewById(R.id.icon);
             TextView label = tile.findViewById(R.id.label);
             icon.setClipToOutline(true);
@@ -133,18 +149,57 @@ public class HomeActivity extends Activity {
             }
             label.setText(ri.loadLabel(pm));
             tile.setContentDescription(label.getText());
+            if (slot >= 0) {
+                // Dock tiles are smaller and unlabeled, seven to a row.
+                label.setVisibility(View.GONE);
+                tile.getLayoutParams().width = dp(100);
+                icon.getLayoutParams().width = dp(100);
+                icon.getLayoutParams().height = dp(56);
+            }
 
             Intent launch = new Intent(Intent.ACTION_MAIN)
                     .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
                     .setClassName(a.packageName, a.name)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
             tile.setOnClickListener(v -> start(launch));
+            tile.setOnLongClickListener(v -> {
+                toggleDock(a.packageName);
+                return true;
+            });
             tile.setOnFocusChangeListener((v, focused) -> {
                 zoom(icon, focused);
-                label.setVisibility(focused ? View.VISIBLE : View.INVISIBLE);
+                if (slot < 0) label.setVisibility(focused ? View.VISIBLE : View.INVISIBLE);
             });
-            apps.addView(tile);
+            if (slot >= 0) dockTiles[slot] = tile;
+            else apps.addView(tile);
         }
+        for (View tile : dockTiles) {
+            if (tile != null) dock.addView(tile);
+        }
+        dock.setVisibility(dock.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+    }
+
+    private List<String> dockPackages() {
+        String saved = getPreferences(MODE_PRIVATE).getString(DOCK_KEY, DEFAULT_DOCK);
+        return new ArrayList<>(Arrays.asList(saved.isEmpty() ? new String[0] : saved.split(",")));
+    }
+
+    private void toggleDock(String pkg) {
+        List<String> docked = dockPackages();
+        int message = R.string.dock_removed;
+        if (!docked.remove(pkg)) {
+            if (docked.size() >= DOCK_SIZE) {
+                Toast.makeText(this, R.string.dock_full, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            docked.add(pkg);
+            message = R.string.dock_added;
+        }
+        getPreferences(MODE_PRIVATE).edit().putString(DOCK_KEY, String.join(",", docked)).apply();
+        loadApps();
+        View moved = findViewById(R.id.content).findViewWithTag(pkg);
+        if (moved != null) moved.requestFocus();
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private void loadShelf() {
