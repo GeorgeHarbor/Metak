@@ -156,18 +156,12 @@ public class HomeActivity extends Activity {
             } else {
                 icon.setImageDrawable(a.loadIcon(pm));
                 icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                int pad = dp(16);
+                int pad = dp(10);
                 icon.setPadding(pad, pad, pad, pad);
             }
             label.setText(ri.loadLabel(pm));
             tile.setContentDescription(label.getText());
-            if (slot >= 0) {
-                // Dock tiles are smaller and unlabeled, seven to a row.
-                label.setVisibility(View.GONE);
-                tile.getLayoutParams().width = dp(100);
-                icon.getLayoutParams().width = dp(100);
-                icon.getLayoutParams().height = dp(56);
-            }
+            if (slot >= 0) label.setVisibility(View.GONE);
 
             Intent launch = new Intent(Intent.ACTION_MAIN)
                     .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)

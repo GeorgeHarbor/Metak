@@ -100,7 +100,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:clipChildren="false"
-                android:columnCount="5" />
+                android:columnCount="7" />
         </LinearLayout>
     </ScrollView>
 

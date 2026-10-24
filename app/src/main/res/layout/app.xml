@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="150dp"
+    android:layout_width="100dp"
     android:layout_height="wrap_content"
     android:layout_margin="10dp"
     android:clipChildren="false"
@@ -9,8 +9,8 @@
 
     <ImageView
         android:id="@+id/icon"
-        android:layout_width="150dp"
-        android:layout_height="84dp"
+        android:layout_width="100dp"
+        android:layout_height="56dp"
         android:background="@drawable/tile_bg"
         android:importantForAccessibility="no"
         android:scaleType="centerCrop" />
@@ -19,11 +19,11 @@
         android:id="@+id/label"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:ellipsize="end"
         android:gravity="center"
         android:maxLines="1"
         android:textColor="#F5F5F7"
-        android:textSize="14sp"
+        android:textSize="12sp"
         android:visibility="invisible" />
 </LinearLayout>
