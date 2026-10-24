@@ -96,6 +96,11 @@ public class HomeActivity extends Activity {
         filter.addDataScheme("package");
         registerReceiver(packagesChanged, filter);
         loadApps();
+        // Size the hero so the dock sits near the bottom and only a sliver of the app grid peeks out.
+        scroll.post(() -> {
+            hero.getLayoutParams().height = scroll.getHeight() - dockFrame.getHeight() - dp(24 + 26);
+            hero.requestLayout();
+        });
         if (checkSelfPermission(WatchNext.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[] {WatchNext.PERMISSION}, 0);
         }
