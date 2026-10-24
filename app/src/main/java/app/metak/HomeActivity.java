@@ -36,6 +36,7 @@ import java.util.List;
 public class HomeActivity extends Activity {
     private static final String DOCK_KEY = "dock";
     private static final int DOCK_SIZE = 7;
+    private static final float DOCK_GLASS_OPACITY = 0.7f;
     // Starts like the stock launcher's dock; missing apps are skipped.
     private static final String DEFAULT_DOCK = "com.nuvio.tv,com.georgeharbor.youtube,com.spotify.tv.android,"
             + "com.limelight,com.netflix.ninja,com.plexapp.android,org.jellyfin.androidtv";
@@ -320,7 +321,8 @@ public class HomeActivity extends Activity {
                 (backdrop.getHeight() - bitmap.getHeight() * scale) / 2 + backdropAt[1] - dockAt[1]);
         // Only touch the view when something moved, or every frame would schedule another.
         if (!blurMatrix.equals(dockBlur.getImageMatrix())) dockBlur.setImageMatrix(blurMatrix);
-        if (dockBlur.getAlpha() != backdrop.getAlpha()) dockBlur.setAlpha(backdrop.getAlpha());
+        float alpha = DOCK_GLASS_OPACITY * backdrop.getAlpha();
+        if (dockBlur.getAlpha() != alpha) dockBlur.setAlpha(alpha);
         return true;
     }
 
