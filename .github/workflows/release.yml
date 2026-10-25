@@ -72,11 +72,10 @@ jobs:
           NAME: ${{ steps.version.outputs.name }}
         run: |
           mkdir dist
-          # A stable name gives a permanent "always latest" download URL.
           cp app/build/outputs/apk/release/app-release.apk dist/metak.apk
           cp app/build/outputs/apk/release/app-release.apk "dist/Metak_${NAME}.apk"
-          # Manifest the in-app updater polls to spot a newer build.
-          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download/latest"
+          # The updater polls GitHub's latest-release redirect, which always resolves to the newest release.
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/latest/download"
           jq -n --argjson code "${{ steps.version.outputs.code }}" --arg name "$NAME" --arg apk "$BASE/metak.apk" \
             '{versionCode: $code, versionName: $name, apk: $apk}' > dist/metak.json
           cat dist/metak.json
@@ -86,12 +85,18 @@ jobs:
           NAME: ${{ steps.version.outputs.name }}
         run: |
           NOTES=$(git log -n 10 --no-merges --pretty=format:'- %s')
+
+          # The real release for this version, kept forever and flagged as the repo's latest.
+          gh release create "v$NAME" dist/metak.apk dist/metak.json "dist/Metak_${NAME}.apk" \
+            --title "Metak $NAME" --notes "$NOTES" --latest
+
+          # Legacy rolling release so apps built before the URL change keep seeing updates.
+          # Only the two stable files live here, so nothing piles up.
           git tag -f latest
           git push -f origin refs/tags/latest
-
           if gh release view latest > /dev/null 2>&1; then
-            gh release edit latest --title "Metak $NAME" --notes "$NOTES"
-            gh release upload latest dist/* --clobber
+            gh release upload latest dist/metak.apk dist/metak.json --clobber
           else
-            gh release create latest dist/* --title "Metak $NAME" --notes "$NOTES" --latest
+            gh release create latest dist/metak.apk dist/metak.json \
+              --title "Metak (rolling)" --notes "Pointer for older builds; see the versioned releases." --latest=false
           fi

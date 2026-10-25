@@ -14,8 +14,9 @@ import org.json.JSONObject;
 /** Checks the GitHub "latest" release for a newer build and installs it in place. */
 final class Updater {
     static final String INSTALL_STATUS = "app.metak.INSTALL_STATUS";
+    // GitHub's built-in "latest release" redirect, so each version gets its own release.
     private static final String MANIFEST =
-            "https://github.com/GeorgeHarbor/Metak/releases/download/latest/metak.json";
+            "https://github.com/GeorgeHarbor/Metak/releases/latest/download/metak.json";
 
     static final class Info {
         final int versionCode;
