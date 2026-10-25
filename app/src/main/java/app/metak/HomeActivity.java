@@ -15,9 +15,14 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -67,7 +72,9 @@ public class HomeActivity extends Activity {
     private AlertDialog picker;
     private Drawable wallpaper;
     private long weatherAt;
+    private String weatherSig; // city+units the shown weather was fetched for
     private View hero;
+    private int heroBase; // hero height with the app-grid sliver showing
     private View backdrop;
     private ImageView[] backdrops;
     private int front; // index of the backdrop layer currently on top
@@ -80,13 +87,30 @@ public class HomeActivity extends Activity {
     private String moving; // package being moved with the arrows, or null
     private boolean movingInDock;
     private ObjectAnimator wiggle;
+    private ObjectAnimator scrollAnim;
     private PopupWindow menu;
     private Bitmap blurSource; // the background the dock blur was made from
+    private CrtView crt;
+    private View gear;
+    private final Runnable dim = () -> crt.turnOff();
+
+    private boolean effectsOn() {
+        return Prefs.bool(this, Prefs.EFFECTS, true);
+    }
 
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             loadApps();
+        }
+    };
+
+    private final BroadcastReceiver screen = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!effectsOn()) return;
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) crt.turnOff(); // collapse to the dot as it sleeps
+            else crt.turnOn(); // the TV woke: CRT it back on
         }
     };
 
@@ -126,12 +150,21 @@ public class HomeActivity extends Activity {
         filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
         filter.addDataScheme("package");
         registerReceiver(packagesChanged, filter);
+        crt = new CrtView(this);
+        addContentView(crt, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (effectsOn()) crt.snapOff(); // start collapsed so the first appearance powers on with the CRT sweep
+        registerReceiver(screen, new IntentFilter(Intent.ACTION_SCREEN_ON) {{ addAction(Intent.ACTION_SCREEN_OFF); }});
+        gear = findViewById(R.id.gear);
+        gear.setOnClickListener(this::settingsMenu);
+        gear.setOnFocusChangeListener((v, focused) -> zoom(v, focused));
+        applyClock();
         loadApps();
         setCity(getIntent());
         // Size the hero so the dock sits near the bottom and only a sliver of the app grid peeks out.
         scroll.post(() -> {
-            hero.getLayoutParams().height = scroll.getHeight() - dockFrame.getHeight() - dp(24 + 26);
-            hero.requestLayout();
+            heroBase = scroll.getHeight() - dockFrame.getHeight() - dp(24 + 26);
+            setHeroCompact(false);
         });
         if (checkSelfPermission(WatchNext.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[] {WatchNext.PERMISSION}, 0);
@@ -141,15 +174,38 @@ public class HomeActivity extends Activity {
     @Override
     protected void onPause() {
         if (menu != null) menu.dismiss();
+        crt.removeCallbacks(dim); // don't dim while we're in the background
         super.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (effectsOn()) crt.turnOn(); // reveals the picture if we come back dimmed; a no-op otherwise
+        resetIdle();
         finishMove();
+        applyClock();   // settings may have changed the clock format
         loadShelf(); // progress changes while the user is away in Nuvio or SmartTube
         loadWeather();
+    }
+
+    /** Force the clock to 12- or 24-hour, or follow the system when set to Automatic. */
+    private void applyClock() {
+        android.widget.TextClock clock = findViewById(R.id.clock_time);
+        String fmt = Prefs.get(this).getString(Prefs.CLOCK, "auto");
+        String h12 = "12".equals(fmt) ? "h:mm" : "24".equals(fmt) ? "H:mm" : "h:mm";
+        String h24 = "12".equals(fmt) ? "h:mm" : "H:mm";
+        clock.setFormat12Hour(h12);
+        clock.setFormat24Hour(h24);
+    }
+
+    private void settingsMenu(View anchor) {
+        java.util.Map<String, Runnable> options = new LinkedHashMap<>();
+        options.put(getString(R.string.menu_launcher_settings),
+                () -> startActivity(new Intent(this, SettingsActivity.class)));
+        options.put(getString(R.string.menu_system_settings),
+                () -> start(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
+        showMenu(anchor, options, false); // opened by a click/settings key, not a held OK
     }
 
     @Override
@@ -160,7 +216,15 @@ public class HomeActivity extends Activity {
     @Override
     protected void onDestroy() {
         unregisterReceiver(packagesChanged);
+        unregisterReceiver(screen);
         super.onDestroy();
+    }
+
+    /** Dim to the CRT dot after the idle timeout from settings; any key keeps the screen alive. */
+    private void resetIdle() {
+        crt.removeCallbacks(dim);
+        long ms = Prefs.get(this).getInt(Prefs.DIM_MIN, 3) * 60_000L;
+        if (ms > 0) crt.postDelayed(dim, ms);
     }
 
     @Override
@@ -198,7 +262,7 @@ public class HomeActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // This TV's remote sends NOTIFICATION from its settings button; others send SETTINGS.
         if (keyCode == KeyEvent.KEYCODE_SETTINGS || keyCode == KeyEvent.KEYCODE_NOTIFICATION) {
-            start(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            settingsMenu(gear); // same choice as the on-screen gear: launcher or system settings
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -294,17 +358,22 @@ public class HomeActivity extends Activity {
     }
 
     private List<String> savedList(String key, String fallback) {
-        String saved = getPreferences(MODE_PRIVATE).getString(key, fallback);
+        String saved = Prefs.get(this).getString(key, fallback);
         return new ArrayList<>(Arrays.asList(saved.isEmpty() ? new String[0] : saved.split(",")));
     }
 
     private void saveList(String key, List<String> values) {
-        getPreferences(MODE_PRIVATE).edit().putString(key, String.join(",", values)).apply();
+        Prefs.get(this).edit().putString(key, String.join(",", values)).apply();
     }
 
     /** Apple-style context menu: a small rounded panel anchored to the item, not a centered dialog. */
     private void showMenu(View anchor, Map<String, Runnable> options) {
-        boolean[] holding = {true};
+        showMenu(anchor, options, true);
+    }
+
+    /** fromHold: true when opened by a held OK (long-press), so the release must not pick the first row. */
+    private void showMenu(View anchor, Map<String, Runnable> options, boolean fromHold) {
+        boolean[] holding = {fromHold};
         ScrollView panel = new ScrollView(this) {
             @Override
             public boolean dispatchKeyEvent(KeyEvent e) {
@@ -452,6 +521,15 @@ public class HomeActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        if (crt.isOff()) {
+            // Dimmed: the first key just wakes the screen, it doesn't also hit a tile.
+            if (e.getAction() == KeyEvent.ACTION_DOWN) {
+                crt.turnOn();
+                resetIdle();
+            }
+            return true;
+        }
+        resetIdle();
         if (moving == null) return super.dispatchKeyEvent(e);
         // While moving, the arrows move the app instead of the focus.
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
@@ -474,17 +552,30 @@ public class HomeActivity extends Activity {
     private void setCity(Intent intent) {
         String city = intent.getStringExtra(CITY_KEY);
         if (city == null || city.trim().isEmpty()) return;
-        getPreferences(MODE_PRIVATE).edit().putString(CITY_KEY, city.trim()).apply();
+        Prefs.get(this).edit().putString(CITY_KEY, city.trim()).apply();
         weatherAt = 0;
         loadWeather();
     }
 
     private void loadWeather() {
+        View weatherView = findViewById(R.id.weather);
+        if (!Prefs.bool(this, Prefs.SHOW_WEATHER, true)) {
+            weatherView.setVisibility(View.GONE);
+            weatherAt = 0;       // reload immediately if it gets switched back on
+            weatherSig = null;
+            return;
+        }
+        String units = Prefs.get(this).getString(Prefs.UNITS, "auto");
+        String city = Prefs.get(this).getString(CITY_KEY, "Kraljevo");
+        String sig = city + "|" + units;
+        if (!sig.equals(weatherSig)) { // city or unit changed in settings: refetch now
+            weatherAt = 0;
+            weatherSig = sig;
+        }
         long now = System.currentTimeMillis();
         if (now - weatherAt < WEATHER_TTL_MS) return;
         weatherAt = now;
-        boolean fahrenheit = "US".equals(Locale.getDefault().getCountry());
-        String city = getPreferences(MODE_PRIVATE).getString(CITY_KEY, "Kraljevo");
+        boolean fahrenheit = "f".equals(units) || ("auto".equals(units) && "US".equals(Locale.getDefault().getCountry()));
         new Thread(() -> {
             Weather w = Weather.load(city, fahrenheit);
             runOnUiThread(() -> {
@@ -508,7 +599,7 @@ public class HomeActivity extends Activity {
         new Thread(() -> {
             List<WatchNext.Item> items = WatchNext.load(getContentResolver());
             // Other apps' rows can't be deleted by a launcher, so "removed" ones are hidden here.
-            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            SharedPreferences prefs = Prefs.get(this);
             Set<String> hidden = new HashSet<>(prefs.getStringSet(HIDDEN_KEY, Collections.emptySet()));
             Set<String> current = new HashSet<>();
             for (WatchNext.Item item : items) current.add(item.key());
@@ -520,7 +611,7 @@ public class HomeActivity extends Activity {
     }
 
     private void hideFromShelf(WatchNext.Item item, int index) {
-        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        SharedPreferences prefs = Prefs.get(this);
         Set<String> hidden = new HashSet<>(prefs.getStringSet(HIDDEN_KEY, Collections.emptySet()));
         hidden.add(item.key());
         prefs.edit().putStringSet(HIDDEN_KEY, hidden).apply();
@@ -540,13 +631,21 @@ public class HomeActivity extends Activity {
             boolean first = shelf.getChildCount() == 0, last = shelf.getChildCount() == items.size() - 1;
             card.setOnFocusChangeListener((v, focused) -> {
                 zoom(v, focused);
-                if (focused) showHero(item);
-                showHeroText(focused);
-                // Only a focused card owns the background; otherwise it is the wallpaper.
-                // Card to card goes straight from art to art; only leaving the row brings the wallpaper back.
-                if (focused) showBackdrop(item.image);
-                else shelf.post(() -> {
-                    if (!shelf.hasFocus()) showBackdrop(null);
+                if (focused) {
+                    showHero(item);
+                    showHeroText(true);
+                    showBackdrop(item.image); // a focused card owns the background
+                    if (Prefs.bool(this, Prefs.WN_BLUR, true)) blurBackdrop(true); // dim + blur while browsing
+                    setHeroCompact(true);     // ...and the app-grid sliver gives way so the dock sits at the bottom
+                    scroll.post(() -> scrollToTop()); // return to the default scroll position
+                } else shelf.post(() -> {
+                    // Card to card keeps the art up; only leaving the row brings the wallpaper back.
+                    if (!shelf.hasFocus()) {
+                        showBackdrop(null);
+                        showHeroText(false);
+                        blurBackdrop(false);
+                        setHeroCompact(false);
+                    }
                 });
                 // The ends snap fully into view instead of stopping just past the card edge.
                 if (focused && first) shelfScroll.post(() -> shelfScroll.smoothScrollTo(0, 0));
@@ -607,6 +706,38 @@ public class HomeActivity extends Activity {
         Images.fetch(this, uri, bitmap -> {
             if (bitmap != null && uri.equals(backdropUri)) fadeBackdrop(new BitmapDrawable(getResources(), bitmap));
         });
+    }
+
+    /** A smooth, fixed-pace glide to the top — fluider than ScrollView's distance-based smoothScroll. */
+    private void scrollToTop() {
+        if (scroll.getScrollY() == 0) return;
+        if (scrollAnim != null) scrollAnim.cancel();
+        scrollAnim = ObjectAnimator.ofInt(scroll, "scrollY", 0);
+        scrollAnim.setDuration(320);
+        scrollAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+        scrollAnim.start();
+    }
+
+    /** Grow the hero by the app-grid sliver while a card is focused, so the dock drops to the bottom. */
+    private void setHeroCompact(boolean compact) {
+        if (heroBase == 0) return; // not measured yet
+        int h = heroBase + (compact ? dp(26) : 0);
+        if (hero.getLayoutParams().height == h) return;
+        hero.getLayoutParams().height = h;
+        hero.requestLayout();
+    }
+
+    /** Dim and blur the backdrop art while a Watch Next card is focused (API 31+; a no-op below). */
+    private void blurBackdrop(boolean on) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+        if (!on) {
+            backdrop.setRenderEffect(null);
+            return;
+        }
+        RenderEffect blur = RenderEffect.createBlurEffect(dp(16), dp(16), Shader.TileMode.CLAMP);
+        RenderEffect dark = RenderEffect.createColorFilterEffect(
+                new PorterDuffColorFilter(0x40000000, PorterDuff.Mode.SRC_ATOP));
+        backdrop.setRenderEffect(RenderEffect.createChainEffect(dark, blur));
     }
 
     private void fadeBackdrop(Drawable next) {

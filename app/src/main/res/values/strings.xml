@@ -12,4 +12,32 @@
     <string name="menu_uninstall">Uninstall</string>
     <string name="move_hint">Use the arrows to move it, then press OK</string>
     <string name="pick_launcher">Choose a home screen</string>
+
+    <string name="menu_launcher_settings">Launcher settings</string>
+    <string name="menu_system_settings">System settings</string>
+    <string name="settings">Settings</string>
+    <string name="sec_weather">Weather</string>
+    <string name="sec_clock">Clock</string>
+    <string name="sec_screen">Screen</string>
+    <string name="sec_wn">Continue Watching</string>
+    <string name="sec_general">General</string>
+
+    <string name="set_city">City</string>
+    <string name="set_units">Temperature</string>
+    <string name="units_auto">Automatic (by region)</string>
+    <string name="set_show_weather">Show weather</string>
+    <string name="set_clock">Format</string>
+    <string name="clock_auto">Match system</string>
+    <string name="set_dim">Dim when idle</string>
+    <string name="dim_never">Never</string>
+    <string name="set_effects">Power on/off animation</string>
+    <string name="set_wn_blur">Blur background while browsing</string>
+    <string name="set_reset_dock">Reset dock to defaults</string>
+    <string name="set_reset_dock_confirm">Put the dock back to its default apps?</string>
+    <string name="set_clear_hidden">Restore removed items</string>
+    <string name="set_clear_hidden_confirm">Show items you removed from Continue Watching again?</string>
+    <string name="set_version">Version</string>
+    <string name="set_on">On</string>
+    <string name="set_off">Off</string>
+    <string name="set_done">Done</string>
 </resources>
