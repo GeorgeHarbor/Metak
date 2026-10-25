@@ -100,6 +100,17 @@ public class HomeActivity extends Activity {
         return Prefs.bool(this, Prefs.EFFECTS, true);
     }
 
+    // The flag only exists on API 33+; the older branch is correct, so silence the lint false positive.
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private void registerInstallStatus() {
+        IntentFilter filter = new IntentFilter(Updater.INSTALL_STATUS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(installStatus, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(installStatus, filter);
+        }
+    }
+
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -177,12 +188,7 @@ public class HomeActivity extends Activity {
         updateButton = findViewById(R.id.update);
         updateButton.setOnClickListener(v -> promptUpdate());
         updateButton.setOnFocusChangeListener((v, focused) -> zoom(v, focused));
-        IntentFilter installFilter = new IntentFilter(Updater.INSTALL_STATUS);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(installStatus, installFilter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(installStatus, installFilter);
-        }
+        registerInstallStatus();
         applyClock();
         loadApps();
         setCity(getIntent());
