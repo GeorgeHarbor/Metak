@@ -54,6 +54,7 @@ public class SettingsActivity extends Activity {
         });
 
         section(R.string.sec_general);
+        actionRow(getString(R.string.set_check_updates), "", this::checkForUpdates);
         action(R.string.set_reset_dock, R.string.set_reset_dock_confirm, () -> {
             prefs.edit().remove("dock").remove("order").apply();
             toast(R.string.set_done);
@@ -176,6 +177,35 @@ public class SettingsActivity extends Activity {
                 .setPositiveButton(android.R.string.ok, (d, w) -> run.run())
                 .setNegativeButton(android.R.string.cancel, null)
                 .show());
+    }
+
+    private void checkForUpdates() {
+        toast(R.string.update_checking);
+        new Thread(() -> {
+            Updater.Info info = Updater.check(this);
+            runOnUiThread(() -> {
+                if (info == null) {
+                    toast(R.string.update_uptodate);
+                    return;
+                }
+                new AlertDialog.Builder(this, DIALOG)
+                        .setTitle(getString(R.string.update_prompt, info.versionName))
+                        .setPositiveButton(R.string.update_install, (d, w) -> startInstall(info.apkUrl))
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            });
+        }).start();
+    }
+
+    private void startInstall(String apkUrl) {
+        toast(R.string.update_downloading);
+        new Thread(() -> {
+            try {
+                Updater.install(this, apkUrl);
+            } catch (Exception e) {
+                runOnUiThread(() -> toast(R.string.update_failed));
+            }
+        }).start();
     }
 
     private void info(String title, String value) {
