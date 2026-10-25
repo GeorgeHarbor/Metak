@@ -1,0 +1,91 @@
+name: Release
+
+# Builds a signed APK on every push to main and publishes it to a rolling "latest" GitHub Release.
+# Reuses the same signing secrets as the SmartTube repo so updates install over one another.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 50 # enough history for the changelog
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Configure Build Signing
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Never ship unsigned: an update only installs over a build signed with the same key.
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::SIGNING_KEY secret is missing"
+            exit 1
+          fi
+          echo "$SIGNING_KEY" | base64 --decode > "$RUNNER_TEMP/key.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/key.jks" "$KEY_STORE_PASSWORD" "$ALIAS" "$KEY_PASSWORD" > keystore.properties
+
+      - name: Set Version
+        id: version
+        run: |
+          # versionCode climbs with every run so newer builds always outrank older ones.
+          CODE=${{ github.run_number }}
+          BASE=$(grep -m1 "versionName" app/build.gradle | awk -F"'" '{print $2}')
+          NAME="$BASE.$CODE"
+          sed -i "s/versionCode [0-9]\+/versionCode $CODE/" app/build.gradle
+          sed -i "s/versionName '.*'/versionName '$NAME'/" app/build.gradle
+          echo "Releasing $NAME ($CODE)"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew clean assembleRelease
+
+      - name: Prepare Release Assets
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+        run: |
+          mkdir dist
+          # A stable name gives a permanent "always latest" download URL.
+          cp app/build/outputs/apk/release/app-release.apk dist/metak.apk
+          cp app/build/outputs/apk/release/app-release.apk "dist/Metak_${NAME}.apk"
+
+      - name: Publish Release
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+        run: |
+          NOTES=$(git log -n 10 --no-merges --pretty=format:'- %s')
+          git tag -f latest
+          git push -f origin refs/tags/latest
+
+          if gh release view latest > /dev/null 2>&1; then
+            gh release edit latest --title "Metak $NAME" --notes "$NOTES"
+            gh release upload latest dist/* --clobber
+          else
+            gh release create latest dist/* --title "Metak $NAME" --notes "$NOTES" --latest
+          fi

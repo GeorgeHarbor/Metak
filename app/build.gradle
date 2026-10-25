@@ -2,6 +2,11 @@ plugins {
     id 'com.android.application'
 }
 
+// CI writes keystore.properties (+ the .jks) from secrets; locally it's absent, so release falls back to debug.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) keystoreProps.load(new FileInputStream(keystorePropsFile))
+
 android {
     namespace 'app.metak'
     compileSdk 34
@@ -14,13 +19,23 @@ android {
         versionName '1.0'
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
-            // shortcut: release is signed with the debug key so it installs as-is, add a real keystore before publishing
-            signingConfig signingConfigs.debug
+            signingConfig keystorePropsFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }
 
