@@ -138,6 +138,14 @@ Record the original enabled state of any package you change. The restore script 
 - Install a compatible update over ADB using the selected device's explicit serial and `install -r`. If a signing conflict or downgrade would require uninstalling or clearing data, stop and ask me before doing so. Do not remove my existing Spotify app automatically.
 - Open Spotify, let me sign in directly on the TV, and verify navigation and playback. Ask whether I want it in Metak's dock and at which position. Record the installed version, source, checksum and verification results in the handover.
 
+### Fix media volume that resets on app open (only if present)
+
+- Test first. Set the media volume to a mid level, launch an app over ADB (not through a remapped key), then re-read `STREAM_MUSIC` on the active output device. If it drops to 0 whenever an app comes to the foreground — and the saved value (e.g. `volume_music_hdmi`) gets rewritten back to 0 — the firmware is forcing it. If the volume holds, skip this section.
+- Prove the cause before fixing it: reproduce the drop with any key-filtering accessibility service disabled, so the problem is attributed to firmware and not to Metak, a remapper or another service. This is a device/firmware behavior, not a Metak bug.
+- If present, offer to install **Volume Keeper** (`https://github.com/GeorgeHarbor/VolumeKeeper/releases/latest`) — a small accessibility service that re-asserts maximum media volume on each app change. Explain that it pins the media stream to maximum and that volume keys still work within an app. Wait for my explicit choice; do not install it if the problem is absent or I decline.
+- If I accept, install the latest release APK (verify SDK and architecture compatibility), then enable its accessibility service by **appending to — never overwriting —** the currently enabled services, and whitelist it from battery optimization. Back up the original enabled-services list and battery setting, and record an undo path.
+- Verify by launching several apps over ADB and confirming the media volume stays at maximum, including after a reboot. If the firmware still wins, report that honestly rather than claiming a fix.
+
 ### Check Continue Watching honestly
 
 - Inspect the current Metak documentation and, if necessary, read its source to understand how it obtains Continue Watching entries. Reading source is allowed; building from source is not.
