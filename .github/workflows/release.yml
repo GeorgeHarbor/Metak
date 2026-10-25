@@ -5,7 +5,8 @@ name: Release
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -54,8 +55,13 @@ jobs:
         run: |
           # versionCode climbs with every run so newer builds always outrank older ones.
           CODE=${{ github.run_number }}
-          BASE=$(grep -m1 "versionName" app/build.gradle | awk -F"'" '{print $2}')
-          NAME="$BASE.$CODE"
+          # versionName comes from the pushed tag (v1.2.3 -> 1.2.3); manual dispatch falls back to build.gradle + run number.
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            BASE=$(grep -m1 "versionName" app/build.gradle | awk -F"'" '{print $2}')
+            NAME="$BASE.$CODE"
+          fi
           sed -i "s/versionCode [0-9]\+/versionCode $CODE/" app/build.gradle
           sed -i "s/versionName '.*'/versionName '$NAME'/" app/build.gradle
           echo "Releasing $NAME ($CODE)"
