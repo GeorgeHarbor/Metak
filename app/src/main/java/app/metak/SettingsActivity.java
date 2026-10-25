@@ -45,6 +45,7 @@ public class SettingsActivity extends Activity {
                 new int[] {0, 1, 3, 5, 10},
                 new String[] {getString(R.string.dim_never), "1 minute", "3 minutes", "5 minutes", "10 minutes"});
         toggle(R.string.set_effects, Prefs.EFFECTS, true);
+        toggle(R.string.set_animations, Prefs.ANIMATIONS, true);
 
         section(R.string.sec_wn);
         toggle(R.string.set_wn_blur, Prefs.WN_BLUR, true);
@@ -106,7 +107,8 @@ public class SettingsActivity extends Activity {
         row.setOnClickListener(v -> onClick.run());
         // tvOS focus: the row lifts a touch as it turns white.
         row.setOnFocusChangeListener((v, f) -> v.animate()
-                .scaleX(f ? 1.02f : 1f).scaleY(f ? 1.02f : 1f).setDuration(140).start());
+                .scaleX(f ? 1.02f : 1f).scaleY(f ? 1.02f : 1f)
+                .setDuration(prefs.getBoolean(Prefs.ANIMATIONS, true) ? 140 : 0).start());
         if (firstRow == null) firstRow = row;
         return row;
     }

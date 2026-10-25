@@ -100,6 +100,11 @@ public class HomeActivity extends Activity {
         return Prefs.bool(this, Prefs.EFFECTS, true);
     }
 
+    /** Animation duration, or 0 (instant jump to the end state) when the user turned animations off. */
+    private long dur(long ms) {
+        return Prefs.bool(this, Prefs.ANIMATIONS, true) ? ms : 0;
+    }
+
     // The flag only exists on API 33+; the older branch is correct, so silence the lint false positive.
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerInstallStatus() {
@@ -780,7 +785,7 @@ public class HomeActivity extends Activity {
         if (scroll.getScrollY() == 0) return;
         if (scrollAnim != null) scrollAnim.cancel();
         scrollAnim = ObjectAnimator.ofInt(scroll, "scrollY", 0);
-        scrollAnim.setDuration(320);
+        scrollAnim.setDuration(dur(320));
         scrollAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
         scrollAnim.start();
     }
@@ -818,7 +823,7 @@ public class HomeActivity extends Activity {
         incoming.setImageDrawable(next);
         incoming.setAlpha(0f);
         incoming.bringToFront();
-        incoming.animate().alpha(1f).setDuration(BACKDROP_FADE_MS).withEndAction(() -> {
+        incoming.animate().alpha(1f).setDuration(dur(BACKDROP_FADE_MS)).withEndAction(() -> {
             if (backdrops[front] != current) current.setImageDrawable(null); // free the hidden layer
         }).start();
     }
@@ -892,7 +897,7 @@ public class HomeActivity extends Activity {
                 .scaleX(focused ? 1.1f : 1f)
                 .scaleY(focused ? 1.1f : 1f)
                 .translationZ(focused ? dp(20) : 0)
-                .setDuration(150)
+                .setDuration(dur(150))
                 .start();
     }
 

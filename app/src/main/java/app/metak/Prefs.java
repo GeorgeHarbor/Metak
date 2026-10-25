@@ -14,6 +14,7 @@ final class Prefs {
     static final String CLOCK = "clock_fmt";        // "auto" | "12" | "24"
     static final String DIM_MIN = "dim_min";        // minutes idle before dimming; 0 = never
     static final String EFFECTS = "fx";             // CRT power on/off + wake animation
+    static final String ANIMATIONS = "anim";        // UI motion (focus zoom, scroll glide, backdrop fade)
     static final String WN_BLUR = "wn_blur";        // blur the backdrop while browsing Watch Next
 
     static SharedPreferences get(Context c) {

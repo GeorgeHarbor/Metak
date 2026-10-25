@@ -39,6 +39,7 @@
     <string name="set_dim">Dim when idle</string>
     <string name="dim_never">Never</string>
     <string name="set_effects">Power on/off animation</string>
+    <string name="set_animations">Animations</string>
     <string name="set_wn_blur">Blur background while browsing</string>
     <string name="set_reset_dock">Reset dock to defaults</string>
     <string name="set_reset_dock_confirm">Put the dock back to its default apps?</string>
