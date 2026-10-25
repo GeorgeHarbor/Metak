@@ -60,6 +60,7 @@ jobs:
           sed -i "s/versionName '.*'/versionName '$NAME'/" app/build.gradle
           echo "Releasing $NAME ($CODE)"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Build with Gradle
         run: |
@@ -74,6 +75,11 @@ jobs:
           # A stable name gives a permanent "always latest" download URL.
           cp app/build/outputs/apk/release/app-release.apk dist/metak.apk
           cp app/build/outputs/apk/release/app-release.apk "dist/Metak_${NAME}.apk"
+          # Manifest the in-app updater polls to spot a newer build.
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download/latest"
+          jq -n --argjson code "${{ steps.version.outputs.code }}" --arg name "$NAME" --arg apk "$BASE/metak.apk" \
+            '{versionCode: $code, versionName: $name, apk: $apk}' > dist/metak.json
+          cat dist/metak.json
 
       - name: Publish Release
         env:

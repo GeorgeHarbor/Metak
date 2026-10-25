@@ -91,7 +91,9 @@ public class HomeActivity extends Activity {
     private PopupWindow menu;
     private Bitmap blurSource; // the background the dock blur was made from
     private CrtView crt;
-    private View gear;
+    private View gear, updateButton;
+    private Updater.Info pendingUpdate;
+    private long lastUpdateCheck;
     private final Runnable dim = () -> crt.turnOff();
 
     private boolean effectsOn() {
@@ -102,6 +104,20 @@ public class HomeActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             loadApps();
+        }
+    };
+
+    // PackageInstaller reports back here: show the confirm prompt, then success/failure.
+    private final BroadcastReceiver installStatus = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -1);
+            if (status == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                if (confirm != null) start(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } else if (status != android.content.pm.PackageInstaller.STATUS_SUCCESS) {
+                Toast.makeText(HomeActivity.this, R.string.update_failed, Toast.LENGTH_SHORT).show();
+            }
         }
     };
 
@@ -158,6 +174,15 @@ public class HomeActivity extends Activity {
         gear = findViewById(R.id.gear);
         gear.setOnClickListener(this::settingsMenu);
         gear.setOnFocusChangeListener((v, focused) -> zoom(v, focused));
+        updateButton = findViewById(R.id.update);
+        updateButton.setOnClickListener(v -> promptUpdate());
+        updateButton.setOnFocusChangeListener((v, focused) -> zoom(v, focused));
+        IntentFilter installFilter = new IntentFilter(Updater.INSTALL_STATUS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(installStatus, installFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(installStatus, installFilter);
+        }
         applyClock();
         loadApps();
         setCity(getIntent());
@@ -187,6 +212,41 @@ public class HomeActivity extends Activity {
         applyClock();   // settings may have changed the clock format
         loadShelf(); // progress changes while the user is away in Nuvio or SmartTube
         loadWeather();
+        checkForUpdate();
+    }
+
+    /** Check GitHub for a newer release at most every few hours; show the update icon if there is one. */
+    private void checkForUpdate() {
+        long now = System.currentTimeMillis();
+        if (pendingUpdate == null && now - lastUpdateCheck < 6 * 60 * 60 * 1000L) return;
+        lastUpdateCheck = now;
+        new Thread(() -> {
+            Updater.Info info = Updater.check(this);
+            runOnUiThread(() -> {
+                pendingUpdate = info;
+                updateButton.setVisibility(info != null ? View.VISIBLE : View.GONE);
+            });
+        }).start();
+    }
+
+    private void promptUpdate() {
+        if (pendingUpdate == null) return;
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(getString(R.string.update_prompt, pendingUpdate.versionName))
+                .setPositiveButton(R.string.update_install, (d, w) -> startInstall(pendingUpdate.apkUrl))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void startInstall(String apkUrl) {
+        Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                Updater.install(this, apkUrl);
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, R.string.update_failed, Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 
     /** Force the clock to 12- or 24-hour, or follow the system when set to Automatic. */
@@ -217,6 +277,7 @@ public class HomeActivity extends Activity {
     protected void onDestroy() {
         unregisterReceiver(packagesChanged);
         unregisterReceiver(screen);
+        unregisterReceiver(installStatus);
         super.onDestroy();
     }
 

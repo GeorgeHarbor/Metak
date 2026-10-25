@@ -198,17 +198,37 @@
         </LinearLayout>
     </ScrollView>
 
-    <ImageView
-        android:id="@+id/gear"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_margin="24dp"
-        android:background="@drawable/gear_bg"
-        android:clickable="true"
-        android:contentDescription="@string/settings"
-        android:focusable="true"
-        android:padding="12dp"
-        android:src="@drawable/ic_gear" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/update"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/gear_bg"
+            android:clickable="true"
+            android:contentDescription="@string/update_available"
+            android:focusable="true"
+            android:padding="13dp"
+            android:src="@drawable/ic_update"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/gear"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:background="@drawable/gear_bg"
+            android:clickable="true"
+            android:contentDescription="@string/settings"
+            android:focusable="true"
+            android:padding="12dp"
+            android:src="@drawable/ic_gear" />
+    </LinearLayout>
 
 </FrameLayout>

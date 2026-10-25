@@ -13,6 +13,11 @@
     <string name="move_hint">Use the arrows to move it, then press OK</string>
     <string name="pick_launcher">Choose a home screen</string>
 
+    <string name="update_available">Update available</string>
+    <string name="update_prompt">Update Metak to %1$s?</string>
+    <string name="update_install">Update</string>
+    <string name="update_downloading">Downloading update…</string>
+    <string name="update_failed">Update failed</string>
     <string name="menu_launcher_settings">Launcher settings</string>
     <string name="menu_system_settings">System settings</string>
     <string name="settings">Settings</string>
