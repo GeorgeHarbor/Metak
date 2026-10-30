@@ -32,6 +32,9 @@
 
     <string name="set_city">City</string>
     <string name="set_units">Temperature</string>
+    <string name="city_here">Current location</string>
+    <string name="city_search">Search for a city</string>
+    <string name="city_footer">Current location uses where the TV last knew it was, or its time zone.</string>
     <string name="units_auto">Automatic (by region)</string>
     <string name="set_show_weather">Show weather</string>
     <string name="set_clock">Format</string>
@@ -45,8 +48,15 @@
     <string name="set_reset_dock_confirm">Put the dock back to its default apps?</string>
     <string name="set_clear_hidden">Restore removed items</string>
     <string name="set_clear_hidden_confirm">Show items you removed from Continue Watching again?</string>
+    <string name="set_sources">Sources</string>
+    <string name="sources_footer">Choose which apps can add to Continue Watching. An app appears here once it has added something.</string>
+    <string name="sources_empty">No app has added anything to Continue Watching yet.</string>
     <string name="set_version">Version</string>
     <string name="set_on">On</string>
     <string name="set_off">Off</string>
     <string name="set_done">Done</string>
+    <plurals name="sources_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
 </resources>

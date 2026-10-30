@@ -1,5 +1,6 @@
 package app.metak;
 
+import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -24,9 +25,12 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
@@ -202,9 +206,11 @@ public class HomeActivity extends Activity {
             heroBase = scroll.getHeight() - dockFrame.getHeight() - dp(24 + 26);
             setHeroCompact(false);
         });
-        if (checkSelfPermission(WatchNext.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[] {WatchNext.PERMISSION}, 0);
+        List<String> missing = new ArrayList<>();
+        for (String p : new String[] {WatchNext.PERMISSION, Manifest.permission.ACCESS_COARSE_LOCATION}) {
+            if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
         }
+        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), 0);
     }
 
     @Override
@@ -270,10 +276,22 @@ public class HomeActivity extends Activity {
         clock.setFormat24Hour(h24);
     }
 
+    /** Settings sits on a blurred copy of this screen, so grab it first (PixelCopy sees the real GPU output). */
+    private void openSettings() {
+        View root = getWindow().getDecorView();
+        Bitmap shot = Bitmap.createBitmap(Math.max(1, root.getWidth() / 4), Math.max(1, root.getHeight() / 4),
+                Bitmap.Config.ARGB_8888);
+        PixelCopy.request(getWindow(), shot, result -> {
+            SettingsActivity.backdrop = result == PixelCopy.SUCCESS ? shot : null;
+            startActivity(new Intent(this, SettingsActivity.class));
+            overridePendingTransition(android.R.anim.fade_in, 0);
+        }, new Handler(Looper.getMainLooper()));
+    }
+
     private void settingsMenu(View anchor) {
         java.util.Map<String, Runnable> options = new LinkedHashMap<>();
         options.put(getString(R.string.menu_launcher_settings),
-                () -> startActivity(new Intent(this, SettingsActivity.class)));
+                this::openSettings);
         options.put(getString(R.string.menu_system_settings),
                 () -> start(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
         showMenu(anchor, options, false); // opened by a click/settings key, not a held OK
@@ -282,6 +300,8 @@ public class HomeActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         loadShelf();
+        weatherAt = 0; // location may now be known
+        loadWeather();
     }
 
     @Override
@@ -624,7 +644,7 @@ public class HomeActivity extends Activity {
     private void setCity(Intent intent) {
         String city = intent.getStringExtra(CITY_KEY);
         if (city == null || city.trim().isEmpty()) return;
-        Prefs.get(this).edit().putString(CITY_KEY, city.trim()).apply();
+        Prefs.get(this).edit().putString(CITY_KEY, city.trim()).remove(Prefs.CITY_LOC).apply();
         weatherAt = 0;
         loadWeather();
     }
@@ -638,8 +658,9 @@ public class HomeActivity extends Activity {
             return;
         }
         String units = Prefs.get(this).getString(Prefs.UNITS, "auto");
-        String city = Prefs.get(this).getString(CITY_KEY, "Kraljevo");
-        String sig = city + "|" + units;
+        String city = Prefs.get(this).getString(CITY_KEY, null); // null: wherever the TV is
+        String loc = Prefs.get(this).getString(Prefs.CITY_LOC, null);
+        String sig = city + "|" + loc + "|" + units;
         if (!sig.equals(weatherSig)) { // city or unit changed in settings: refetch now
             weatherAt = 0;
             weatherSig = sig;
@@ -649,7 +670,7 @@ public class HomeActivity extends Activity {
         weatherAt = now;
         boolean fahrenheit = "f".equals(units) || ("auto".equals(units) && "US".equals(Locale.getDefault().getCountry()));
         new Thread(() -> {
-            Weather w = Weather.load(city, fahrenheit);
+            Weather w = city == null ? Weather.here(this, fahrenheit) : Weather.load(city, loc, fahrenheit);
             runOnUiThread(() -> {
                 if (w == null) {
                     weatherAt = 0; // retry on the next resume
@@ -677,7 +698,7 @@ public class HomeActivity extends Activity {
             for (WatchNext.Item item : items) current.add(item.key());
             // Forget rows that are gone or were watched again; skip when the load failed and returned nothing.
             if (!items.isEmpty() && hidden.retainAll(current)) prefs.edit().putStringSet(HIDDEN_KEY, hidden).apply();
-            items.removeIf(item -> hidden.contains(item.key()));
+            items.removeIf(item -> hidden.contains(item.key()) || !WatchNext.enabled(prefs, item.pkg));
             runOnUiThread(() -> showShelf(items, focusIndex));
         }).start();
     }
@@ -751,7 +772,7 @@ public class HomeActivity extends Activity {
         }
         heroTitle.setText(item.title);
         long left = (item.duration - item.position) / 60000;
-        String meta = item.progress() < 0 ? item.source() : getString(R.string.time_left, item.source(), left);
+        String meta = item.progress() < 0 ? item.source(this) : getString(R.string.time_left, item.source(this), left);
         heroSubtitle.setText(item.subtitle == null ? meta : item.subtitle + " · " + meta);
     }
 

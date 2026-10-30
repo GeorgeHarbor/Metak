@@ -8,7 +8,8 @@ final class Prefs {
     // Matches Activity.getPreferences()'s file name, so dock/city saved before this change still load.
     static final String FILE = "HomeActivity";
 
-    static final String CITY = "city";
+    static final String CITY = "city";              // absent = the TV's own location
+    static final String CITY_LOC = "city_loc";      // "lat,lon" of the picked city; absent = look CITY up by name
     static final String UNITS = "units";            // "auto" | "c" | "f"
     static final String SHOW_WEATHER = "show_weather";
     static final String CLOCK = "clock_fmt";        // "auto" | "12" | "24"
@@ -16,6 +17,7 @@ final class Prefs {
     static final String EFFECTS = "fx";             // CRT power on/off + wake animation
     static final String ANIMATIONS = "anim";        // UI motion (focus zoom, scroll glide, backdrop fade)
     static final String WN_BLUR = "wn_blur";        // blur the backdrop while browsing Watch Next
+    static final String WN_FLIPPED = "wn_flipped";  // Watch Next sources switched away from their default
 
     static SharedPreferences get(Context c) {
         return c.getSharedPreferences(FILE, Context.MODE_PRIVATE);

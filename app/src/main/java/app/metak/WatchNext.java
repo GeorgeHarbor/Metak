@@ -1,12 +1,18 @@
 package app.metak;
 
 import android.content.ContentResolver;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.media.tv.TvContract.WatchNextPrograms;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
-/** Continue-watching rows that Nuvio and SmartTube publish to the system Watch Next table. */
+/** Continue-watching rows that apps publish to the system Watch Next table. */
 final class WatchNext {
     static final String PERMISSION = "android.permission.READ_TV_LISTINGS";
 
@@ -19,13 +25,35 @@ final class WatchNext {
             return pkg + "/" + id + "@" + lastEngaged;
         }
 
-        String source() {
-            return pkg.startsWith("com.nuvio") ? "Nuvio" : "YouTube";
+        String source(Context c) {
+            if (pkg.startsWith("com.nuvio")) return "Nuvio";
+            return wanted(pkg) ? "YouTube" : label(c, pkg);
         }
 
         /** Playback progress in thousandths, or -1 when the app did not report a duration. */
         int progress() {
             return duration > 0 ? (int) Math.min(1000, 1000 * position / duration) : -1;
+        }
+    }
+
+    /** Whether the user shows this app's rows; Nuvio and SmartTube are on until switched off, other apps off until switched on. */
+    static boolean enabled(SharedPreferences prefs, String pkg) {
+        return wanted(pkg) != prefs.getStringSet(Prefs.WN_FLIPPED, Collections.emptySet()).contains(pkg);
+    }
+
+    /** Every app with rows in the table, most recently watched first. */
+    static Set<String> sources(ContentResolver resolver) {
+        Set<String> pkgs = new LinkedHashSet<>();
+        for (Item item : load(resolver)) pkgs.add(item.pkg);
+        return pkgs;
+    }
+
+    static String label(Context c, String pkg) {
+        PackageManager pm = c.getPackageManager();
+        try {
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return pkg;
         }
     }
 
@@ -39,6 +67,7 @@ final class WatchNext {
                 || pkg.equals("com.georgeharbor.youtube");
     }
 
+    /** All browsable rows from every app; callers filter by {@link #enabled}. */
     static List<Item> load(ContentResolver resolver) {
         List<Item> items = new ArrayList<>();
         // TvProvider rejects any selection from non-system callers, so filter in code.
@@ -46,7 +75,7 @@ final class WatchNext {
             while (c != null && c.moveToNext()) {
                 Item item = new Item();
                 item.pkg = string(c, WatchNextPrograms.COLUMN_PACKAGE_NAME);
-                if (!wanted(item.pkg) || number(c, WatchNextPrograms.COLUMN_BROWSABLE, 1) == 0) continue;
+                if (item.pkg == null || number(c, WatchNextPrograms.COLUMN_BROWSABLE, 1) == 0) continue;
                 item.id = number(c, WatchNextPrograms._ID, 0);
                 item.title = string(c, WatchNextPrograms.COLUMN_TITLE);
                 item.subtitle = string(c, WatchNextPrograms.COLUMN_EPISODE_TITLE);
