@@ -2,6 +2,10 @@
 
 An Apple TV-inspired home screen for Android TV and Google TV, with a favorite-app dock, an app grid, weather, and Continue Watching from supported apps.
 
+![Metak running on a ZTE MediaBox B866V2: clock and weather above Continue Watching and a favorite-app dock](docs/images/metak-mediabox.png)
+
+*Actual capture from a ZTE MediaBox B866V2 running Android 12. Continue Watching is empty in this capture; its availability depends on playback entries published by other apps.*
+
 [Download Metak](https://github.com/GeorgeHarbor/Metak/releases/latest) · [SmartTube Harbor](https://github.com/GeorgeHarbor/SmartTube)
 
 ## Set it up with one prompt
@@ -348,10 +352,6 @@ verified. Clearly identify anything that could not be tested or completed.
 ```
 
 The same prompt is also in [docs/setup-prompt.md](docs/setup-prompt.md).
-
-![Metak running on a ZTE MediaBox B866V2: clock and weather above Continue Watching and a favorite-app dock](docs/images/metak-mediabox.png)
-
-*Actual capture from a ZTE MediaBox B866V2 running Android 12. Continue Watching is empty in this capture; its availability depends on playback entries published by other apps.*
 
 ## Set up manually
 
